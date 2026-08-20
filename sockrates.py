@@ -42,7 +42,7 @@ import time
 from dataclasses import dataclass, asdict
 from typing import Iterable, Optional
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 REPO = "SimuZSkyNeT/sockrates"
 HOME_URL = f"https://github.com/{REPO}"

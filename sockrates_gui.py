@@ -53,9 +53,26 @@ class App:
         self._style()
         self._build()
         self._load_cfg()
+        self._fix_focus()
         self.root.protocol("WM_DELETE_WINDOW", self._quit)
         self.root.after(80, self._drain)
         self.root.after(1200, self._check_updates)
+
+    def _fix_focus(self):
+        # 🔴 On some Linux window managers a click does not hand keyboard focus to
+        # a ttk entry, so typing goes nowhere and the fields look "dead". Force it:
+        # any click on an input widget claims focus, and the window claims focus on
+        # launch. Class-level bindings cover every entry, present and future.
+        for cls in ("TEntry", "TSpinbox", "TCombobox"):
+            self.root.bind_class(cls, "<Button-1>",
+                                 lambda e: e.widget.focus_set(), add="+")
+        self.root.after(200, self._grab_keyboard)
+
+    def _grab_keyboard(self):
+        try:
+            self.root.focus_force()
+        except tk.TclError:
+            pass
 
     # ------------------------------------------------------------- settings
     # Remembering the last setup is small but it is the difference between a
@@ -368,9 +385,14 @@ class App:
         self.v_country = tk.BooleanVar(value=True)
         self.v_only = tk.StringVar(value="")
 
+        # only digits and a dot may be typed — a spinbox bound to a number must
+        # never end up holding "DE,NL", which would crash the next hunt.
+        vnum = (f.register(lambda P: P == "" or P.replace(".", "", 1).isdigit()), "%P")
+
         def num(r, c, label, var, frm, to, inc, hint):
             ttk.Label(f, text=label).grid(row=r, column=c, sticky="w", pady=4)
-            ttk.Spinbox(f, from_=frm, to=to, increment=inc, textvariable=var, width=8
+            ttk.Spinbox(f, from_=frm, to=to, increment=inc, textvariable=var, width=8,
+                        validate="key", validatecommand=vnum
                         ).grid(row=r, column=c + 1, sticky="w", padx=(8, 20))
             ttk.Label(f, text=hint, style="Muted.TLabel").grid(row=r, column=c + 2, sticky="w")
 
@@ -408,7 +430,8 @@ class App:
                         variable=self.v_fresh).grid(row=8, column=3, columnspan=3, sticky="w")
         ttk.Checkbutton(f, text="Re-hunt automatically every", variable=self.v_auto).grid(
             row=9, column=0, sticky="w", pady=4)
-        ttk.Spinbox(f, from_=1, to=180, textvariable=self.v_every, width=6).grid(
+        ttk.Spinbox(f, from_=1, to=180, textvariable=self.v_every, width=6,
+                    validate="key", validatecommand=vnum).grid(
             row=9, column=1, sticky="w", padx=(8, 6))
         ttk.Label(f, text="minutes — a list an hour old is mostly dead",
                   style="Muted.TLabel").grid(row=9, column=2, sticky="w")
@@ -632,6 +655,13 @@ class App:
         self.stop_flag.set()
         self.q.put(("log", "stopping — letting running checks finish…"))
 
+    def _num(self, var, default):
+        """Read a numeric field defensively — an empty or half-typed box is not a crash."""
+        try:
+            return type(default)(var.get())
+        except (ValueError, tk.TclError):
+            return default
+
     def _work(self, target: str, sources: list[str], preset: list[str] | None,
               scan_spec: list[str] | None = None):
         try:
@@ -639,8 +669,8 @@ class App:
                 self.q.put(("log", f"scanning {len(scan_spec):,} host:port pairs "
                                    "— knocking for open SOCKS5 ports…"))
                 t0 = time.time()
-                proxies = ph.scan(scan_spec, int(self.v_workers.get()),
-                                  min(float(self.v_timeout.get()), 4.0))
+                proxies = ph.scan(scan_spec, self._num(self.v_workers, 600),
+                                  min(self._num(self.v_timeout, 6.0), 4.0))
                 self.q.put(("log", f"{len(proxies)} open port(s) in {time.time()-t0:.1f}s "
                                    "— now verifying each really works"))
             elif preset is None:
@@ -656,11 +686,11 @@ class App:
                 return
 
             self.q.put(("total", len(proxies)))
-            timeout = float(self.v_timeout.get())
+            timeout = self._num(self.v_timeout, 6.0)
             strict = bool(self.v_strict.get())
-            maxlat = float(self.v_maxlat.get())
+            maxlat = self._num(self.v_maxlat, 0.0)
             import concurrent.futures as F
-            ex = F.ThreadPoolExecutor(max_workers=int(self.v_workers.get()))
+            ex = F.ThreadPoolExecutor(max_workers=self._num(self.v_workers, 600))
             try:
                 futs = [ex.submit(ph.check, p, target, timeout, strict) for p in proxies]
                 for i, fu in enumerate(F.as_completed(futs), 1):

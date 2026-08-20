@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project follows [Semantic Versioning](https://semver.org/).
 
+## [0.2.1] — 2026-08-21
+
+### Fixed
+- **Could not type in the settings fields on some Linux window managers.** A click did not hand
+  keyboard focus to the input, so the fields looked dead. Any click on a field now claims focus,
+  and the window claims keyboard focus on launch.
+- The numeric settings (workers, timeout, latency, refresh interval) now reject non-numeric
+  input instead of silently accepting text that would break the next run.
+
 ## [0.2.0] — 2026-08-20
 
 ### Added
