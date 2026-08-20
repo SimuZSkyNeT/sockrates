@@ -42,7 +42,7 @@ import time
 from dataclasses import dataclass, asdict
 from typing import Iterable, Optional
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 REPO = "SimuZSkyNeT/sockrates"
 HOME_URL = f"https://github.com/{REPO}"
@@ -226,6 +226,7 @@ class Result:
     reliability: float = 0.0  # share of our checks it has passed, 0..1
     checks: int = 0           # how many times we have tested it
     ptype: str = "socks5"     # socks5 | socks4 | http
+    anonymity: str = ""       # "" not checked | transparent | anonymous | elite | ?
 
     @property
     def addr(self) -> str:
@@ -499,6 +500,105 @@ def mtproto_handshake(sock: socket.socket, timeout: float) -> bool:
     return data[24:40] == nonce
 
 
+# --------------------------------------------------------------------------
+# Anonymity — does the proxy hide you, or leak your real IP?
+#
+# transparent : the target sees YOUR real IP (the proxy forwards it). Useless
+#               for privacy — you might as well not use a proxy.
+# anonymous   : your IP is hidden, but the request carries proxy-tell headers
+#               (Via, X-Forwarded-For…), so the target knows a proxy is in play.
+# elite       : your IP is hidden AND no proxy headers leak — indistinguishable
+#               from a direct connection.
+#
+# The test: ask a "judge" that echoes back the request it received. If our own
+# public IP appears in it, transparent; else if a proxy header is present,
+# anonymous; else elite. Judges are plain HTTP so any proxy type can reach them.
+# --------------------------------------------------------------------------
+IP_ECHO = ["http://api.ipify.org", "http://ipv4.icanhazip.com", "http://ifconfig.me/ip"]
+JUDGES = ["httpbin.org", "eu.httpbin.org"]   # /get returns JSON echoing headers+origin
+LEAK_HEADERS = {"via", "x-forwarded-for", "x-real-ip", "forwarded", "client-ip",
+                "x-proxy-id", "proxy-connection", "x-forwarded", "forwarded-for"}
+_REAL_IP_CACHE: list = []
+
+
+def real_ext_ip(timeout: float = 6.0) -> Optional[str]:
+    """Our own public IP, fetched once and cached. Needed to detect a leak."""
+    if _REAL_IP_CACHE:
+        return _REAL_IP_CACHE[0]
+    import urllib.request
+    for url in IP_ECHO:
+        try:
+            with urllib.request.urlopen(url, timeout=timeout) as r:
+                ip = r.read().decode("utf-8", "ignore").strip()
+            ipaddress.ip_address(ip)   # validate
+            _REAL_IP_CACHE.append(ip)
+            return ip
+        except Exception:
+            continue
+    return None
+
+
+def anonymity_of(proxy: str, timeout: float, real_ip: Optional[str]) -> str:
+    """Return 'transparent' | 'anonymous' | 'elite' | '?' for the proxy.
+
+    '?' means the judge could not be reached through it — an honest 'unknown',
+    never guessed.
+    """
+    try:
+        ptype, host, port = split_scheme(proxy)
+    except ValueError:
+        return "?"
+    for judge in JUDGES:
+        try:
+            if ptype in ("http", "https"):
+                # forward proxy: talk to the proxy directly with an absolute URI.
+                # Many HTTP proxies refuse CONNECT to :80 but serve plain GETs.
+                sock = socket.create_connection((host, port), timeout=timeout)
+                request_line = f"GET http://{judge}/get HTTP/1.1"
+            else:
+                # socks: tunnel to the judge, then a normal origin-form request
+                sock = connect_through(ptype, host, port, judge, 80, timeout)
+                request_line = "GET /get HTTP/1.1"
+        except Exception:
+            continue
+        try:
+            sock.settimeout(timeout)
+            req = (f"{request_line}\r\nHost: {judge}\r\n"
+                   f"User-Agent: sockrates/{__version__}\r\nAccept: application/json\r\n"
+                   f"Connection: close\r\n\r\n").encode()
+            sock.sendall(req)
+            buf = b""
+            while len(buf) < 65536:
+                chunk = sock.recv(4096)
+                if not chunk:
+                    break
+                buf += chunk
+        except Exception:
+            continue
+        finally:
+            try:
+                sock.close()
+            except Exception:
+                pass
+        body = buf.split(b"\r\n\r\n", 1)[-1]
+        try:
+            data = json.loads(body.decode("utf-8", "ignore"))
+            headers = {k.lower(): str(v) for k, v in (data.get("headers") or {}).items()}
+            origin = str(data.get("origin", ""))
+        except Exception:
+            # not JSON (an HTML judge or an error page) — fall back to raw text
+            text = body.decode("latin1", "ignore").lower()
+            headers = {h: "" for h in LEAK_HEADERS if h in text}
+            origin = text
+        blob = origin + " " + " ".join(headers.values())
+        if real_ip and real_ip in blob:
+            return "transparent"
+        if any(h in headers for h in LEAK_HEADERS):
+            return "anonymous"
+        return "elite"
+    return "?"
+
+
 def check(proxy: str, target: str, timeout: float, strict: bool) -> Optional[Result]:
     """Return a Result if the proxy really reaches the target, else None.
 
@@ -582,10 +682,10 @@ def fmt_uri(res: list["Result"]) -> str:
 
 
 def fmt_csv(res: list["Result"]) -> str:
-    out = ["type,host,port,latency_s,country,verified,known_for,reliability_pct,checks,target"]
+    out = ["type,host,port,latency_s,country,anonymity,verified,known_for,reliability_pct,checks,target"]
     for r in res:
         h, _, p_ = r.addr.rpartition(":")
-        out.append(f"{r.ptype},{h},{p_},{r.latency},{r.country},{r.verified},"
+        out.append(f"{r.ptype},{h},{p_},{r.latency},{r.country},{r.anonymity},{r.verified},"
                    f"{r.age_label},{round(100*r.reliability)},{r.checks},{r.target}")
     return "\n".join(out)
 
@@ -796,8 +896,27 @@ def scan(targets: list[str], workers: int, timeout: float,
     return sorted(found)
 
 
+def classify_anonymity(res: list[Result], workers: int, timeout: float,
+                       progress: bool = False) -> None:
+    """Fill in each result's anonymity level, in place. One judge trip per proxy."""
+    real = real_ext_ip(timeout)
+    with futures.ThreadPoolExecutor(max_workers=workers) as ex:
+        futs = {ex.submit(anonymity_of, r.proxy, timeout, real): r for r in res}
+        for f in futures.as_completed(futs):
+            try:
+                futs[f].anonymity = f.result()
+            except Exception:
+                futs[f].anonymity = "?"
+    if progress:
+        from collections import Counter
+        c = Counter(r.anonymity for r in res)
+        print("   anonymity: " + ", ".join(f"{k} {v}" for k, v in c.most_common()),
+              file=sys.stderr, flush=True)
+
+
 def hunt(proxies: list[str], target: str, workers: int, timeout: float,
-         strict: bool, progress: bool = False, history: bool = True) -> list[Result]:
+         strict: bool, progress: bool = False, history: bool = True,
+         anonymity: bool = False) -> list[Result]:
     out: list[Result] = []
     done = 0
     with futures.ThreadPoolExecutor(max_workers=workers) as ex:
@@ -813,6 +932,8 @@ def hunt(proxies: list[str], target: str, workers: int, timeout: float,
             if progress and done % 500 == 0:
                 print(f"  … {done}/{len(proxies)} tested, {len(out)} alive",
                       file=sys.stderr, flush=True)
+    if anonymity and out:
+        classify_anonymity(out, workers, timeout, progress=progress)
     if history:
         h = load_history()
         record(h, proxies, out)
@@ -947,6 +1068,11 @@ def main(argv=None) -> int:
     ap.add_argument("--max-latency", type=float, default=0.0, help="drop slower ones (0 = keep all)")
     ap.add_argument("--min-age", type=float, default=0.0, metavar="HOURS",
                     help="only proxies we have known to work for at least this long")
+    ap.add_argument("--anonymity", action="store_true",
+                    help="also classify each proxy as transparent / anonymous / elite "
+                         "(one extra judge request per proxy)")
+    ap.add_argument("--only-elite", action="store_true",
+                    help="keep only elite proxies (implies --anonymity)")
     ap.add_argument("--min-reliability", type=float, default=0.0, metavar="PCT",
                     help="only proxies that passed at least PCT%% of our past checks")
     ap.add_argument("--no-history", action="store_true",
@@ -1036,13 +1162,16 @@ def main(argv=None) -> int:
         f"{'strict' if not a.no_strict else 'no liar control'}")
     t1 = time.time()
     res = hunt(proxies, a.target, a.workers, a.timeout, not a.no_strict,
-               progress=not a.quiet, history=not a.no_history)
+               progress=not a.quiet, history=not a.no_history,
+               anonymity=a.anonymity or a.only_elite)
     if a.max_latency:
         res = [r for r in res if r.latency <= a.max_latency]
     if a.min_age:
         res = [r for r in res if r.age_h >= a.min_age]
     if a.min_reliability:
         res = [r for r in res if 100 * r.reliability >= a.min_reliability]
+    if a.only_elite:
+        res = [r for r in res if r.anonymity == "elite"]
 
     if a.country or a.only_country:
         add_countries(res)

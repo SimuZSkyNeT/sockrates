@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project follows [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] — 2026-08-21
+
+### Added
+- **Anonymity classification** — the feature a proxy checker is expected to have. With
+  `--anonymity` (or the app checkbox), each proxy is graded **transparent** (leaks your real
+  IP), **anonymous** (hides your IP but announces a proxy is in use), or **elite**
+  (indistinguishable from a direct connection). It asks a header-echo judge through the proxy
+  and compares against your own public IP; a judge it can't reach is reported as `?`, never
+  guessed. `--only-elite` keeps just the elite ones. The app gains sortable Anonymity and Type
+  columns.
+
 ## [0.3.0] — 2026-08-21
 
 ### Added

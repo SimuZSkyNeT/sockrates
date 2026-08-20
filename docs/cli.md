@@ -41,6 +41,8 @@ python3 sockrates.py --target 10.0.0.5:1080          # plain TCP reachability
 | `--min-age HOURS` | `0` (off) | only proxies known to work for at least this long |
 | `--min-reliability PCT` | `0` (off) | only proxies that passed at least PCT% of past checks |
 | `--country` | off | look up each proxy's country (one call per 100) |
+| `--anonymity` | off | grade each proxy transparent / anonymous / elite |
+| `--only-elite` | off | keep only elite proxies (implies `--anonymity`) |
 | `--only-country CC,CC` | — | keep only these countries (implies `--country`) |
 | `--limit N` | `0` (all) | test at most N candidates |
 

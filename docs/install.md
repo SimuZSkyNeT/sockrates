@@ -6,8 +6,8 @@ place. Pick whichever suits your machine.
 ## Debian, Ubuntu, Mint, Pop!\_OS
 
 ```bash
-wget https://github.com/SimuZSkyNeT/sockrates/releases/latest/download/sockrates_0.3.0_all.deb
-sudo apt install ./sockrates_0.3.0_all.deb
+wget https://github.com/SimuZSkyNeT/sockrates/releases/latest/download/sockrates_0.4.0_all.deb
+sudo apt install ./sockrates_0.4.0_all.deb
 ```
 
 `apt install ./file.deb` rather than `dpkg -i` so the recommended `python3-tk` (the desktop
@@ -16,7 +16,7 @@ app) is pulled in for you. Remove with `sudo apt remove sockrates`.
 ## Fedora, RHEL, openSUSE
 
 ```bash
-sudo dnf install https://github.com/SimuZSkyNeT/sockrates/releases/latest/download/sockrates-0.3.0-1.noarch.rpm
+sudo dnf install https://github.com/SimuZSkyNeT/sockrates/releases/latest/download/sockrates-0.4.0-1.noarch.rpm
 ```
 
 openSUSE: `sudo zypper install <url>`. Remove with `sudo dnf remove sockrates`.

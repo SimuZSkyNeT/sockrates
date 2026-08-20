@@ -87,6 +87,7 @@ class App:
                     "cert": self.v_cert.get(), "workers": int(self.v_workers.get()),
                     "timeout": float(self.v_timeout.get()), "maxlat": float(self.v_maxlat.get()),
                     "strict": bool(self.v_strict.get()), "country": bool(self.v_country.get()),
+                    "anon": bool(self.v_anon.get()),
                     "only": self.v_only.get(), "auto": bool(self.v_auto.get()),
                     "every": int(self.v_every.get()), "autofile": self.v_autofile.get(),
                     "updates": bool(self.v_updates.get()), "fresh": bool(self.v_fresh.get()),
@@ -112,6 +113,7 @@ class App:
             self.v_maxlat.set(c.get("maxlat", 0.0))
             self.v_strict.set(c.get("strict", True))
             self.v_country.set(c.get("country", True))
+            self.v_anon.set(c.get("anon", False))
             self.v_only.set(c.get("only", ""))
             self.v_auto.set(c.get("auto", False))
             self.v_every.set(c.get("every", 10))
@@ -241,11 +243,12 @@ class App:
         card.grid(row=3, column=0, sticky="nsew")
         card.rowconfigure(0, weight=1)
         card.columnconfigure(0, weight=1)
-        cols = ("proxy", "latency", "country", "verified", "age", "reliability")
+        cols = ("proxy", "type", "latency", "country", "anon", "verified", "age", "reliability")
         self.tree = ttk.Treeview(card, columns=cols, show="headings", selectmode="extended")
-        heads = {"proxy": ("Proxy", 210), "latency": ("Latency", 90),
-                 "country": ("Country", 80), "verified": ("Proof", 100),
-                 "age": ("Known for", 100), "reliability": ("Reliability", 130)}
+        heads = {"proxy": ("Proxy", 175), "type": ("Type", 70), "latency": ("Latency", 80),
+                 "country": ("Country", 70), "anon": ("Anonymity", 100),
+                 "verified": ("Proof", 90),
+                 "age": ("Known for", 90), "reliability": ("Reliability", 110)}
         for c in cols:
             t, w = heads[c]
             self.tree.heading(c, text=t, command=lambda c=c: self._sort(c))
@@ -419,6 +422,10 @@ class App:
                                                      sticky="w", pady=(10, 2))
         ttk.Checkbutton(f, text="Look up country", variable=self.v_country).grid(
             row=5, column=0, columnspan=3, sticky="w", pady=2)
+        self.v_anon = tk.BooleanVar(value=False)
+        ttk.Checkbutton(f, text="Classify anonymity (transparent / anonymous / elite) — "
+                               "one extra request per proxy", variable=self.v_anon).grid(
+            row=5, column=3, columnspan=3, sticky="w", pady=2)
         ttk.Label(f, text="Keep only countries").grid(row=6, column=0, sticky="w", pady=(8, 0))
         ttk.Entry(f, textvariable=self.v_only, width=22).grid(row=6, column=1, sticky="w",
                                                               padx=(8, 20), pady=(8, 0))
@@ -723,6 +730,11 @@ class App:
                         self.q.put(("tick", i))
             finally:
                 ex.shutdown(wait=False, cancel_futures=True)
+            if self.v_anon.get() and self.results:
+                self.q.put(("log", f"classifying anonymity of {len(self.results)}…"))
+                ph.classify_anonymity(self.results, self._num(self.v_workers, 600),
+                                      self._num(self.v_timeout, 6.0))
+                self.q.put(("refresh", None))
             # same record the CLI keeps: how long we have known each proxy and
             # how often it held up. Without this the two faces would disagree.
             try:
@@ -784,8 +796,10 @@ class App:
         # zebra striping keeps a long list readable; speed colour rides on top
         zebra = "odd" if (len(self.tree.get_children()) % 2) else "even"
         rel = f"{100*r.reliability:.0f}% of {r.checks}" if r.checks else "—"
-        self.tree.insert("", "end", values=(r.proxy, f"{r.latency:.2f}s", r.country or "—",
-                                            r.verified, r.age_label if r.checks else "—", rel),
+        self.tree.insert("", "end",
+                         values=(r.addr, r.ptype, f"{r.latency:.2f}s", r.country or "—",
+                                 r.anonymity or "—", r.verified,
+                                 r.age_label if r.checks else "—", rel),
                          tags=(zebra, speed))
 
     def _fresh(self, rows: list[ph.Result]) -> list[ph.Result]:
@@ -824,8 +838,12 @@ class App:
         q = self.v_filter.get().strip().lower()
         rows = [r for r in self.results
                 if not q or q in r.proxy.lower() or q in (r.country or "").lower()]
-        key = {"proxy": lambda r: r.proxy, "latency": lambda r: r.latency,
+        # anonymity sorts best-first: elite > anonymous > transparent > ? > unset
+        _anon_rank = {"elite": 0, "anonymous": 1, "transparent": 2, "?": 3, "": 4}
+        key = {"proxy": lambda r: r.addr, "type": lambda r: r.ptype,
+               "latency": lambda r: r.latency,
                "country": lambda r: r.country, "verified": lambda r: r.verified,
+               "anon": lambda r: _anon_rank.get(r.anonymity, 5),
                "age": lambda r: r.age_h,
                "reliability": lambda r: (r.reliability, r.checks)}[self.sort_col]
         return sorted(rows, key=key, reverse=self.sort_rev)

@@ -225,6 +225,39 @@ def test_expand_hosts():
         check("oversized CIDR is refused", True)
 
 
+def test_anonymity_classify():
+    import json as _json
+    real = "9.9.9.9"
+
+    def judge(headers: dict, origin: str):
+        def h(conn):
+            conn.recv(4096)
+            body = _json.dumps({"headers": headers, "origin": origin}).encode()
+            conn.sendall(b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
+                         b"Connection: close\r\n\r\n" + body)
+        return h
+
+    # socks5 tunnel to a judge that echoes our real IP → transparent
+    def s5_then(handler):
+        def h(conn):
+            socks5_ok(conn, handler)
+        return h
+    host, port, _ = serve(s5_then(judge({"Host": "j"}, "9.9.9.9")))
+    check("transparent detected",
+          sk.anonymity_of(f"socks5://{host}:{port}", 5, real) == "transparent")
+
+    host, port, _ = serve(s5_then(judge({"Via": "1.1 proxy"}, "5.5.5.5")))
+    check("anonymous detected (proxy header, IP hidden)",
+          sk.anonymity_of(f"socks5://{host}:{port}", 5, real) == "anonymous")
+
+    host, port, _ = serve(s5_then(judge({"Host": "j", "Accept": "*"}, "5.5.5.5")))
+    check("elite detected (no leak, no proxy header)",
+          sk.anonymity_of(f"socks5://{host}:{port}", 5, real) == "elite")
+
+    check("unreachable judge is '?'",
+          sk.anonymity_of("socks5://127.0.0.1:1", 1, real) == "?")
+
+
 def test_history_keeps_failures():
     """The score must not drift to 100% by forgetting the dead."""
     hist = {}
@@ -241,7 +274,8 @@ if __name__ == "__main__":
                test_socks4_and_http_connect,
                test_mtproto_genuine, test_mtproto_wrong_constructor,
                test_mtproto_wrong_nonce, test_scan_detects_socks5, test_expand_hosts,
-               test_formats, test_proxy_types, test_history_keeps_failures):
+               test_formats, test_proxy_types, test_anonymity_classify,
+               test_history_keeps_failures):
         fn()
     print(f"\n{'FAILED: ' + ', '.join(FAILS) if FAILS else 'all good'}")
     sys.exit(1 if FAILS else 0)

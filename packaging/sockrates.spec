@@ -6,7 +6,7 @@
 %{!?python3_sitelib: %global python3_sitelib %(python3 -c "import sysconfig; print(sysconfig.get_path('purelib'))")}
 
 Name:           sockrates
-Version:        0.3.0
+Version:        0.4.0
 Release:        1%{?dist}
 Summary:        SOCKS5 proxy finder that makes every proxy prove it works
 
@@ -86,6 +86,8 @@ python3 tests/test_protocol.py
 %{_datadir}/icons/hicolor/*/apps/%{name}.*
 
 %changelog
+* Fri Aug 21 2026 SimuZSkyNeT <318048242+SimuZSkyNeT@users.noreply.github.com> - 0.4.0-1
+- Anonymity classification (transparent/anonymous/elite) via --anonymity / --only-elite.
 * Fri Aug 21 2026 SimuZSkyNeT <318048242+SimuZSkyNeT@users.noreply.github.com> - 0.3.0-1
 - Support SOCKS5, SOCKS4 and HTTP/HTTPS proxies (--type); more curated sources.
 * Fri Aug 21 2026 SimuZSkyNeT <318048242+SimuZSkyNeT@users.noreply.github.com> - 0.2.3-1
