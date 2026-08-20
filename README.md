@@ -15,6 +15,11 @@ the Bot API.
 
 It runs in your terminal **and** as a desktop app. It has **no third-party dependencies**.
 
+> **It is a verifier, not a scanner.** Sockrates only contacts addresses that are already
+> published on public proxy lists, one short connection per check. It does not sweep address
+> ranges, does not probe hosts nobody advertised, and never attempts authentication. See
+> [Responsible use](#responsible-use).
+
 <p align="center"><img src="docs/screenshot.png" alt="Sockrates desktop app" width="820"></p>
 
 ```console
