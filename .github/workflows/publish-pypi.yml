@@ -1,0 +1,38 @@
+name: Publish to PyPI
+
+# Uses PyPI Trusted Publishing (OIDC): GitHub proves to PyPI that this workflow,
+# in this repository, produced the files. No API token exists anywhere — nothing
+# to leak, nothing to rotate.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/sockrates
+    permissions:
+      id-token: write        # required for trusted publishing
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Self-test before shipping
+        run: python tests/test_protocol.py
+
+      - name: Build
+        run: |
+          python -m pip install --quiet build
+          python -m build
+
+      - name: Check the metadata renders on PyPI
+        run: |
+          python -m pip install --quiet twine
+          twine check dist/*
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
