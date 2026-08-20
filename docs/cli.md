@@ -25,6 +25,7 @@ python3 sockrates.py --target 10.0.0.5:1080          # plain TCP reachability
 
 | flag | default | meaning |
 |---|---|---|
+| `--type LIST` | socks5 | proxy types to hunt: `socks5,socks4,http` or `all` |
 | `--in FILE` | — | re-test an existing list instead of downloading |
 | `--scan RANGE` | — | discover proxies by scanning a CIDR / range / host instead of lists |
 | `--ports LIST` | common SOCKS5 ports | comma-separated ports for `--scan` |

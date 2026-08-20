@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""sockrates — find open SOCKS5 proxies, and make each one prove it works.
+"""sockrates — find open proxies (SOCKS5/SOCKS4/HTTP), and make each prove it works.
 
 The name is the method. Socrates never accepted a claim at face value; neither
 does this. Public lists hand you thousands of proxies in under a second, and
@@ -42,7 +42,7 @@ import time
 from dataclasses import dataclass, asdict
 from typing import Iterable, Optional
 
-__version__ = "0.2.3"
+__version__ = "0.3.0"
 
 REPO = "SimuZSkyNeT/sockrates"
 HOME_URL = f"https://github.com/{REPO}"
@@ -133,22 +133,63 @@ def apply_update():
     return (True, "Updated. Restart Sockrates to run the new version.")
 
 # --------------------------------------------------------------------------
-# Sources: plain text endpoints containing ip:port pairs. Unreachable or
-# reshuffled sources are skipped silently — the list is meant to rot gracefully.
+# Sources: plain-text endpoints of ip:port pairs, each tagged with the proxy
+# type it serves. A source's type is how a scraped ip:port becomes a typed
+# candidate — the lists themselves rarely say. Unreachable or reshuffled sources
+# are skipped silently: the set is meant to rot gracefully.
 # --------------------------------------------------------------------------
-SOURCES_SOCKS5 = [
-    "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/socks5.txt",
-    "https://raw.githubusercontent.com/monosans/proxy-list/main/proxies/socks5.txt",
-    "https://raw.githubusercontent.com/hookzof/socks5_list/master/proxy.txt",
-    "https://raw.githubusercontent.com/jetkai/proxy-list/main/online-proxies/txt/proxies-socks5.txt",
-    "https://raw.githubusercontent.com/roosterkid/openproxylist/main/SOCKS5_RAW.txt",
-    "https://raw.githubusercontent.com/mmpx12/proxy-list/master/socks5.txt",
-    "https://raw.githubusercontent.com/ShiftyTR/Proxy-List/master/socks5.txt",
-    "https://api.proxyscrape.com/v2/?request=getproxies&protocol=socks5&timeout=5000",
-    "https://proxyspace.pro/socks5.txt",
-    "https://raw.githubusercontent.com/proxifly/free-proxy-list/main/proxies/protocols/socks5/data.txt",
-    "https://raw.githubusercontent.com/zloi-user/hideip.me/main/socks5.txt",
-]
+SOURCES = {
+    "socks5": [
+        "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/socks5.txt",
+        "https://raw.githubusercontent.com/monosans/proxy-list/main/proxies/socks5.txt",
+        "https://raw.githubusercontent.com/hookzof/socks5_list/master/proxy.txt",
+        "https://raw.githubusercontent.com/jetkai/proxy-list/main/online-proxies/txt/proxies-socks5.txt",
+        "https://raw.githubusercontent.com/roosterkid/openproxylist/main/SOCKS5_RAW.txt",
+        "https://raw.githubusercontent.com/mmpx12/proxy-list/master/socks5.txt",
+        "https://api.proxyscrape.com/v2/?request=getproxies&protocol=socks5&timeout=5000",
+        "https://proxyspace.pro/socks5.txt",
+        "https://raw.githubusercontent.com/proxifly/free-proxy-list/main/proxies/protocols/socks5/data.txt",
+        "https://raw.githubusercontent.com/zloi-user/hideip.me/main/socks5.txt",
+        "https://raw.githubusercontent.com/vakhov/fresh-proxy-list/master/socks5.txt",
+        "https://raw.githubusercontent.com/Zaeem20/FREE_PROXIES_LIST/master/socks5.txt",
+        "https://raw.githubusercontent.com/vmheaven/VMHeaven-Free-Proxy-Updated/main/socks5.txt",
+        "https://raw.githubusercontent.com/databay-labs/free-proxy-list/master/socks5.txt",
+        "https://raw.githubusercontent.com/iplocate/free-proxy-list/main/protocols/socks5.txt",
+        "https://raw.githubusercontent.com/elliottophellia/yakumo/master/results/socks5/global/socks5_checked.txt",
+    ],
+    "socks4": [
+        "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/socks4.txt",
+        "https://raw.githubusercontent.com/monosans/proxy-list/main/proxies/socks4.txt",
+        "https://raw.githubusercontent.com/roosterkid/openproxylist/main/SOCKS4_RAW.txt",
+        "https://raw.githubusercontent.com/mmpx12/proxy-list/master/socks4.txt",
+        "https://api.proxyscrape.com/v2/?request=getproxies&protocol=socks4&timeout=5000",
+        "https://proxyspace.pro/socks4.txt",
+        "https://raw.githubusercontent.com/proxifly/free-proxy-list/main/proxies/protocols/socks4/data.txt",
+        "https://raw.githubusercontent.com/vakhov/fresh-proxy-list/master/socks4.txt",
+        "https://raw.githubusercontent.com/Zaeem20/FREE_PROXIES_LIST/master/socks4.txt",
+        "https://raw.githubusercontent.com/vmheaven/VMHeaven-Free-Proxy-Updated/main/socks4.txt",
+        "https://raw.githubusercontent.com/databay-labs/free-proxy-list/master/socks4.txt",
+        "https://raw.githubusercontent.com/iplocate/free-proxy-list/main/protocols/socks4.txt",
+        "https://raw.githubusercontent.com/elliottophellia/yakumo/master/results/socks4/global/socks4_checked.txt",
+    ],
+    "http": [
+        "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt",
+        "https://raw.githubusercontent.com/monosans/proxy-list/main/proxies/http.txt",
+        "https://raw.githubusercontent.com/roosterkid/openproxylist/main/HTTPS_RAW.txt",
+        "https://raw.githubusercontent.com/mmpx12/proxy-list/master/http.txt",
+        "https://api.proxyscrape.com/v2/?request=getproxies&protocol=http&timeout=5000",
+        "https://proxyspace.pro/https.txt",
+        "https://raw.githubusercontent.com/proxifly/free-proxy-list/main/proxies/protocols/http/data.txt",
+        "https://raw.githubusercontent.com/vakhov/fresh-proxy-list/master/http.txt",
+        "https://raw.githubusercontent.com/Zaeem20/FREE_PROXIES_LIST/master/http.txt",
+        "https://raw.githubusercontent.com/vmheaven/VMHeaven-Free-Proxy-Updated/main/http.txt",
+        "https://raw.githubusercontent.com/databay-labs/free-proxy-list/master/http.txt",
+        "https://raw.githubusercontent.com/iplocate/free-proxy-list/main/protocols/http.txt",
+        "https://raw.githubusercontent.com/elliottophellia/yakumo/master/results/http/global/http_checked.txt",
+    ],
+}
+# Back-compat alias for anyone importing the old name.
+SOURCES_SOCKS5 = SOURCES["socks5"]
 
 # Telegram datacenter addresses used by MTProto clients (Telethon, mobile apps).
 # Port 443 is the one that survives most restrictive networks.
@@ -184,9 +225,19 @@ class Result:
     age_h: float = 0.0        # hours since we first saw this proxy alive
     reliability: float = 0.0  # share of our checks it has passed, 0..1
     checks: int = 0           # how many times we have tested it
+    ptype: str = "socks5"     # socks5 | socks4 | http
+
+    @property
+    def addr(self) -> str:
+        """Just ip:port, whatever scheme the candidate carried."""
+        return self.proxy.split("://", 1)[-1]
+
+    @property
+    def uri(self) -> str:
+        return f"{self.ptype}://{self.addr}"
 
     def line(self) -> str:
-        return self.proxy
+        return self.addr
 
     @property
     def age_label(self) -> str:
@@ -305,6 +356,101 @@ def socks5_connect(proxy_host: str, proxy_port: int, dest_host: str, dest_port: 
         raise
 
 
+def socks4_connect(proxy_host: str, proxy_port: int, dest_host: str, dest_port: int,
+                   timeout: float) -> socket.socket:
+    """Negotiate SOCKS4/4a CONNECT (no auth). Returns a socket tunnelled to dest.
+
+    SOCKS4 has no domain support; SOCKS4a adds it by sending 0.0.0.x and the
+    hostname, and letting the proxy resolve — so a domain target works either way.
+    """
+    s = socket.create_connection((proxy_host, proxy_port), timeout=timeout)
+    s.settimeout(timeout)
+    try:
+        try:
+            ip = ipaddress.ip_address(dest_host)
+            if ip.version != 4:
+                raise OSError("SOCKS4 is IPv4 only")
+            req = b"\x04\x01" + struct.pack(">H", dest_port) + ip.packed + b"\x00"
+        except ValueError:
+            # SOCKS4a: unroutable marker IP + the hostname, proxy resolves it
+            req = (b"\x04\x01" + struct.pack(">H", dest_port) + b"\x00\x00\x00\x01"
+                   + b"\x00" + dest_host.encode() + b"\x00")
+        s.sendall(req)
+        rep = _recv_exact(s, 8)
+        if rep[0] != 0x00 or rep[1] != 0x5A:   # 0x5A = request granted
+            raise OSError(f"refused (code {rep[1]})")
+        return s
+    except Exception:
+        s.close()
+        raise
+
+
+def http_connect(proxy_host: str, proxy_port: int, dest_host: str, dest_port: int,
+                 timeout: float) -> socket.socket:
+    """Tunnel through an HTTP proxy with the CONNECT method (no auth).
+
+    This is what an "HTTP/HTTPS proxy" means for arbitrary TCP: the proxy opens a
+    raw tunnel to dest:port and everything after is end to end, so our own TLS or
+    MTProto handshake runs through it unchanged.
+    """
+    s = socket.create_connection((proxy_host, proxy_port), timeout=timeout)
+    s.settimeout(timeout)
+    try:
+        hostport = f"{dest_host}:{dest_port}"
+        req = (f"CONNECT {hostport} HTTP/1.1\r\nHost: {hostport}\r\n"
+               f"Proxy-Connection: keep-alive\r\n\r\n").encode()
+        s.sendall(req)
+        # read headers up to the blank line
+        buf = b""
+        while b"\r\n\r\n" not in buf:
+            chunk = s.recv(256)
+            if not chunk:
+                raise OSError("connection closed early")
+            buf += chunk
+            if len(buf) > 8192:
+                raise OSError("oversized CONNECT reply")
+        status = buf.split(b"\r\n", 1)[0]
+        parts = status.split(None, 2)
+        if len(parts) < 2 or parts[1] != b"200":
+            raise OSError(f"CONNECT refused: {status[:60].decode('latin1', 'replace')}")
+        return s
+    except Exception:
+        s.close()
+        raise
+
+
+# proxy type -> the function that opens a tunnel through it. "https" is an HTTP
+# proxy reached the same way (CONNECT); the distinction only matters to the
+# operator, not to the tunnel, so they share one connector.
+CONNECTORS = {
+    "socks5": socks5_connect,
+    "socks4": socks4_connect,
+    "http": http_connect,
+    "https": http_connect,
+}
+PROXY_TYPES = ["socks5", "socks4", "http"]
+
+
+def connect_through(ptype: str, phost: str, pport: int, dhost: str, dport: int,
+                    timeout: float) -> socket.socket:
+    fn = CONNECTORS.get(ptype)
+    if not fn:
+        raise OSError(f"unknown proxy type {ptype!r}")
+    return fn(phost, pport, dhost, dport, timeout)
+
+
+def split_scheme(cand: str):
+    """('socks5://1.2.3.4:1080') -> ('socks5', '1.2.3.4', 1080).
+
+    A bare 'ip:port' defaults to socks5, so old lists and files still work.
+    """
+    scheme = "socks5"
+    if "://" in cand:
+        scheme, cand = cand.split("://", 1)
+    host, port = cand.rsplit(":", 1)
+    return scheme.lower(), host, int(port)
+
+
 def _recv_exact(s: socket.socket, n: int) -> bytes:
     buf = b""
     while len(buf) < n:
@@ -354,17 +500,21 @@ def mtproto_handshake(sock: socket.socket, timeout: float) -> bool:
 
 
 def check(proxy: str, target: str, timeout: float, strict: bool) -> Optional[Result]:
-    """Return a Result if the proxy really reaches the target, else None."""
+    """Return a Result if the proxy really reaches the target, else None.
+
+    `proxy` may be a bare 'ip:port' (assumed socks5) or 'scheme://ip:port' where
+    scheme is socks5 / socks4 / http / https. The verification below is identical
+    for every type — only how the tunnel opens differs.
+    """
     try:
-        host, port_s = proxy.rsplit(":", 1)
-        port = int(port_s)
+        ptype, host, port = split_scheme(proxy)
     except ValueError:
         return None
     dest_host, dest_port, sni, cert_needle = TARGETS[target]
 
     t0 = time.time()
     try:
-        sock = socks5_connect(host, port, dest_host, dest_port, timeout)
+        sock = connect_through(ptype, host, port, dest_host, dest_port, timeout)
     except Exception:
         return None
 
@@ -396,19 +546,20 @@ def check(proxy: str, target: str, timeout: float, strict: bool) -> Optional[Res
             pass
     latency = round(time.time() - t0, 3)
 
-    if strict and _is_liar(host, port, timeout):
+    if strict and _is_liar(ptype, host, port, timeout):
         return None
-    return Result(proxy=proxy, latency=latency, target=target, verified=verified)
+    return Result(proxy=proxy, latency=latency, target=target, verified=verified, ptype=ptype)
 
 
 def _is_telegram_dc(host: str) -> bool:
     return any(host == ip for ip, _ in TELEGRAM_DCS)
 
 
-def _is_liar(host: str, port: int, timeout: float) -> bool:
+def _is_liar(ptype: str, host: str, port: int, timeout: float) -> bool:
     """True if the proxy reports success connecting somewhere impossible."""
     try:
-        s = socks5_connect(host, port, LIAR_CONTROL[0], LIAR_CONTROL[1], min(timeout, 4.0))
+        s = connect_through(ptype, host, port, LIAR_CONTROL[0], LIAR_CONTROL[1],
+                            min(timeout, 4.0))
         s.close()
         return True
     except Exception:
@@ -422,19 +573,19 @@ def _is_liar(host: str, port: int, timeout: float) -> bool:
 # using a good list.
 # --------------------------------------------------------------------------
 def fmt_plain(res: list["Result"]) -> str:
-    return "\n".join(r.proxy for r in res)
+    return "\n".join(r.addr for r in res)
 
 
 def fmt_uri(res: list["Result"]) -> str:
-    """socks5:// URIs — what curl, requests and most env vars want."""
-    return "\n".join(f"socks5://{r.proxy}" for r in res)
+    """scheme:// URIs — what curl, requests and most env vars want."""
+    return "\n".join(r.uri for r in res)
 
 
 def fmt_csv(res: list["Result"]) -> str:
-    out = ["host,port,latency_s,country,verified,known_for,reliability_pct,checks,target"]
+    out = ["type,host,port,latency_s,country,verified,known_for,reliability_pct,checks,target"]
     for r in res:
-        h, _, p_ = r.proxy.rpartition(":")
-        out.append(f"{h},{p_},{r.latency},{r.country},{r.verified},"
+        h, _, p_ = r.addr.rpartition(":")
+        out.append(f"{r.ptype},{h},{p_},{r.latency},{r.country},{r.verified},"
                    f"{r.age_label},{round(100*r.reliability)},{r.checks},{r.target}")
     return "\n".join(out)
 
@@ -443,25 +594,38 @@ def fmt_json(res: list["Result"]) -> str:
     return json.dumps([asdict(r) for r in res], indent=2)
 
 
+# proxychains keyword per type: it speaks socks4/socks5/http, and treats an
+# https proxy as http.
+_PCHAIN = {"socks5": "socks5", "socks4": "socks4", "http": "http", "https": "http"}
+# PySocks constant per type, for the paste-ready Python list.
+_PYSOCKS = {"socks5": "socks.SOCKS5", "socks4": "socks.SOCKS4",
+            "http": "socks.HTTP", "https": "socks.HTTP"}
+
+
 def fmt_proxychains(res: list["Result"]) -> str:
     """Drop-in block for proxychains.conf ([ProxyList] section)."""
     head = ["# generated by sockrates — paste under [ProxyList]"]
-    return "\n".join(head + [f"socks5 {r.proxy.rsplit(':',1)[0]} {r.proxy.rsplit(':',1)[1]}"
-                              for r in res])
+    return "\n".join(head + [f"{_PCHAIN.get(r.ptype, 'socks5')} "
+                             f"{r.addr.rsplit(':',1)[0]} {r.addr.rsplit(':',1)[1]}"
+                             for r in res])
 
 
 def fmt_python(res: list["Result"]) -> str:
     """Ready to paste into a Telethon/PySocks script."""
-    rows = ",\n".join(f"    (socks.SOCKS5, {r.proxy.rsplit(':',1)[0]!r}, "
-                      f"{r.proxy.rsplit(':',1)[1]})" for r in res)
+    rows = ",\n".join(f"    ({_PYSOCKS.get(r.ptype, 'socks.SOCKS5')}, "
+                      f"{r.addr.rsplit(':',1)[0]!r}, {r.addr.rsplit(':',1)[1]})" for r in res)
     return ("import socks  # pip install pysocks\n\n"
             "# verified by sockrates, fastest first\n"
             f"PROXIES = [\n{rows}\n]\n")
 
 
+# curl scheme per type: socks5h keeps DNS remote; http proxies use the http scheme.
+_CURL = {"socks5": "socks5h", "socks4": "socks4a", "http": "http", "https": "http"}
+
+
 def fmt_curl(res: list["Result"]) -> str:
-    return "\n".join(f"curl --proxy socks5h://{r.proxy} \\\n     https://api.telegram.org/"
-                      for r in res[:50])
+    return "\n".join(f"curl --proxy {_CURL.get(r.ptype,'socks5h')}://{r.addr} \\\n"
+                     f"     https://api.telegram.org/" for r in res[:50])
 
 
 FORMATS = {
@@ -479,24 +643,35 @@ def render(res: list["Result"], fmt: str) -> str:
     return FORMATS[fmt][0](res)
 
 
-def collect(sources: Iterable[str], timeout: float = 12.0, verbose: bool = False) -> list[str]:
+def _fetch_ipports(url: str, timeout: float) -> set[str]:
     import urllib.request
+    req = urllib.request.Request(url, headers={"User-Agent": f"sockrates/{__version__}"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        text = r.read().decode("utf-8", "ignore")
+    return {f"{ip}:{port}" for ip, port in IPPORT_RX.findall(text) if 0 < int(port) < 65536}
+
+
+def collect(types: Iterable[str] = ("socks5",), timeout: float = 12.0,
+            verbose: bool = False) -> list[str]:
+    """Collect typed candidates ('scheme://ip:port') for the given proxy types.
+
+    Each type's sources tag their addresses with that type. The same ip:port can
+    legitimately appear as both a socks5 and an http candidate — they are checked
+    and tracked separately, because a box can run one and not the other.
+    """
     found: set[str] = set()
-    for url in sources:
-        n0 = len(found)
-        try:
-            req = urllib.request.Request(url, headers={"User-Agent": f"sockrates/{__version__}"})
-            with urllib.request.urlopen(req, timeout=timeout) as r:
-                text = r.read().decode("utf-8", "ignore")
-            for ip, port in IPPORT_RX.findall(text):
-                if 0 < int(port) < 65536:
-                    found.add(f"{ip}:{port}")
-        except Exception as e:
+    for ptype in types:
+        for url in SOURCES.get(ptype, []):
+            try:
+                got = _fetch_ipports(url, timeout)
+            except Exception as e:
+                if verbose:
+                    print(f"  ✗ [{ptype}] {url.split('/')[2]}: {e}", file=sys.stderr)
+                continue
+            for hp in got:
+                found.add(f"{ptype}://{hp}")
             if verbose:
-                print(f"  ✗ {url.split('/')[2]}: {e}", file=sys.stderr)
-            continue
-        if verbose:
-            print(f"  ✓ {url.split('/')[2]:<28} +{len(found)-n0}", file=sys.stderr)
+                print(f"  ✓ [{ptype}] {url.split('/')[2]:<26} +{len(got)}", file=sys.stderr)
     return sorted(found)
 
 
@@ -537,6 +712,24 @@ def _socks5_open(host: str, port: int, timeout: float) -> bool:
             pass
 
 
+# A harmless, always-up anchor to prove a socks4/http proxy actually tunnels.
+# Unlike SOCKS5, those protocols have no server-initiated greeting, so the only
+# way to know the port really is such a proxy is to open a real tunnel through it.
+SCAN_ANCHOR = ("1.1.1.1", 80)
+
+
+def _proxy_open(ptype: str, host: str, port: int, timeout: float) -> bool:
+    """True if host:port behaves as a proxy of the given type."""
+    if ptype == "socks5":
+        return _socks5_open(host, port, timeout)
+    try:
+        s = connect_through(ptype, host, port, SCAN_ANCHOR[0], SCAN_ANCHOR[1], timeout)
+        s.close()
+        return True
+    except Exception:
+        return False
+
+
 def expand_targets(spec: str, ports: list[int]) -> list[str]:
     """Turn a CIDR / range / host into host:port candidates.
 
@@ -573,15 +766,23 @@ def expand_hosts(spec: str) -> list[str]:
 
 
 def scan(targets: list[str], workers: int, timeout: float,
-         progress: bool = False) -> list[str]:
-    """Find host:port pairs that speak SOCKS5. Returns candidates, not verified."""
+         progress: bool = False, types: list[str] = None) -> list[str]:
+    """Find host:port pairs that behave as a proxy. Returns typed candidates.
+
+    Each host:port is probed for every requested type; a port that answers as
+    both socks5 and http yields two candidates, each verified separately later.
+    """
+    types = types or ["socks5"]
     found: list[str] = []
     done = 0
     with futures.ThreadPoolExecutor(max_workers=workers) as ex:
         futs = {}
         for t in targets:
             host, _, port = t.rpartition(":")
-            futs[ex.submit(_socks5_open, host, int(port), timeout)] = t
+            for ptype in types:
+                futs[ex.submit(_proxy_open, ptype, host, int(port), timeout)] = \
+                    f"{ptype}://{host}:{port}"
+        total = len(futs)
         for f in futures.as_completed(futs):
             done += 1
             try:
@@ -590,7 +791,7 @@ def scan(targets: list[str], workers: int, timeout: float,
             except Exception:
                 pass
             if progress and done % 2000 == 0:
-                print(f"  … {done:,}/{len(targets):,} knocked, {len(found)} open",
+                print(f"  … {done:,}/{total:,} knocked, {len(found)} open",
                       file=sys.stderr, flush=True)
     return sorted(found)
 
@@ -629,7 +830,7 @@ def add_countries(res: list[Result], timeout: float = 10.0) -> None:
     import urllib.request
     for i in range(0, len(res), 100):
         chunk = res[i:i + 100]
-        body = json.dumps([{"query": r.proxy.split(":")[0], "fields": "countryCode,query"}
+        body = json.dumps([{"query": r.addr.split(":")[0], "fields": "countryCode,query"}
                            for r in chunk]).encode()
         try:
             req = urllib.request.Request("http://ip-api.com/batch", data=body,
@@ -638,9 +839,42 @@ def add_countries(res: list[Result], timeout: float = 10.0) -> None:
                 data = json.load(resp)
             by_ip = {d.get("query"): d.get("countryCode", "") for d in data if isinstance(d, dict)}
             for r in chunk:
-                r.country = by_ip.get(r.proxy.split(":")[0], "") or ""
+                r.country = by_ip.get(r.addr.split(":")[0], "") or ""
         except Exception:
             return  # best effort: a missing country never invalidates a proxy
+
+
+def _parse_types(spec: str, ap) -> list[str]:
+    if spec.strip().lower() == "all":
+        return list(PROXY_TYPES)
+    types = [t.strip().lower() for t in spec.split(",") if t.strip()]
+    for t in types:
+        if t not in CONNECTORS:
+            ap.error(f"unknown proxy type '{t}' (choose from {', '.join(PROXY_TYPES)}, or all)")
+    return types or ["socks5"]
+
+
+def _read_infile(path: str, types: list[str]) -> list[str]:
+    """Read a proxy list. Lines may carry a scheme ('http://ip:port') or be bare
+    'ip:port', in which case each requested type is tried."""
+    default_types = types or ["socks5"]
+    out: set[str] = set()
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "://" in line:
+                scheme = line.split("://", 1)[0].lower()
+                m = IPPORT_RX.search(line)
+                if m and scheme in CONNECTORS:
+                    out.add(f"{scheme}://{m.group(0)}")
+            else:
+                m = IPPORT_RX.search(line)
+                if m:
+                    for t in default_types:
+                        out.add(f"{t}://{m.group(0)}")
+    return sorted(out)
 
 
 def _watch(a, log) -> int:
@@ -659,7 +893,7 @@ def _watch(a, log) -> int:
     while True:
         run += 1
         t0 = time.time()
-        proxies = collect(SOURCES_SOCKS5)
+        proxies = collect(getattr(a, 'types', ['socks5']))
         res = hunt(proxies, a.target, a.workers, a.timeout, not a.no_strict,
                    history=not a.no_history)
         if a.max_latency:
@@ -695,6 +929,9 @@ def main(argv=None) -> int:
     ap.add_argument("--cert-contains", metavar="TEXT",
                     help="require the certificate to mention TEXT (implies --tls)")
     ap.add_argument("--in", dest="infile", help="test this file instead of downloading lists")
+    ap.add_argument("--type", default="socks5", metavar="LIST",
+                    help="proxy types to hunt, comma-separated: "
+                         f"{', '.join(PROXY_TYPES)}, or 'all' (default: socks5)")
     ap.add_argument("--scan", metavar="RANGE",
                     help="discover proxies by scanning a CIDR / range / host instead of using "
                          "public lists, e.g. 203.0.113.0/24. Only scan what you may.")
@@ -761,6 +998,8 @@ def main(argv=None) -> int:
 
     log = (lambda *x: None) if a.quiet else (lambda *x: print(*x, file=sys.stderr, flush=True))
 
+    a.types = _parse_types(a.type, ap)
+
     if a.watch:
         return _watch(a, log)
 
@@ -774,16 +1013,17 @@ def main(argv=None) -> int:
             return 2
         log(f"🔭 scanning {a.scan} — {len(targets):,} host:port pairs on {len(ports)} port(s)")
         log("   ⚠️  only scan ranges you own or are authorised to test")
-        proxies = scan(targets, a.workers, min(a.timeout, 4.0), progress=not a.quiet)
-        log(f"   {len(proxies)} open SOCKS5 port(s) in {time.time()-t0:.1f}s "
-            f"— now verifying each really works")
+        proxies = scan(targets, a.workers, min(a.timeout, 4.0), progress=not a.quiet,
+                       types=a.types)
+        log(f"   {len(proxies)} open proxy port(s) [{', '.join(a.types)}] in "
+            f"{time.time()-t0:.1f}s — now verifying each really works")
     elif a.infile:
-        with open(a.infile) as f:
-            proxies = sorted({m.group(0) for line in f for m in [IPPORT_RX.search(line)] if m})
+        proxies = _read_infile(a.infile, a.types)
         log(f"📥 {len(proxies):,} proxies from {a.infile}")
     else:
-        log(f"📥 collecting from {len(SOURCES_SOCKS5)} sources…")
-        proxies = collect(SOURCES_SOCKS5, verbose=not a.quiet)
+        nsrc = sum(len(SOURCES.get(t, [])) for t in a.types)
+        log(f"📥 collecting {', '.join(a.types)} from {nsrc} sources…")
+        proxies = collect(a.types, verbose=not a.quiet)
         log(f"   {len(proxies):,} unique in {time.time()-t0:.1f}s")
     if a.limit:
         proxies = proxies[:a.limit]

@@ -129,8 +129,9 @@ def test_mtproto_wrong_nonce():
 
 
 def test_formats():
-    r = sk.Result(proxy="1.2.3.4:1080", latency=0.5, target="telegram-mtproto",
-                  verified="mtproto", country="NL", age_h=30, reliability=0.9, checks=10)
+    r = sk.Result(proxy="socks5://1.2.3.4:1080", latency=0.5, target="telegram-mtproto",
+                  verified="mtproto", country="NL", age_h=30, reliability=0.9, checks=10,
+                  ptype="socks5")
     check("plain format", sk.render([r], "plain") == "1.2.3.4:1080")
     check("uri format", sk.render([r], "uri") == "socks5://1.2.3.4:1080")
     check("proxychains format", "socks5 1.2.3.4 1080" in sk.render([r], "proxychains"))
@@ -140,6 +141,65 @@ def test_formats():
                            and sk.Result("p", 0, "t", "tcp", age_h=0.5).age_label == "30m"
                            and sk.Result("p", 0, "t", "tcp", age_h=72).age_label == "3d"))
     check("every format renders", all(sk.render([r], k) for k in sk.FORMATS))
+
+
+def test_proxy_types():
+    # the scheme drives which format keyword/URI comes out
+    h = sk.Result(proxy="http://5.6.7.8:8080", latency=0.2, target="https",
+                  verified="tls-cert", ptype="http")
+    s4 = sk.Result(proxy="socks4://9.9.9.9:1080", latency=0.3, target="https",
+                   verified="tls-cert", ptype="socks4")
+    check("http uri", sk.render([h], "uri") == "http://5.6.7.8:8080")
+    check("http proxychains", "http 5.6.7.8 8080" in sk.render([h], "proxychains"))
+    check("http pysocks", "socks.HTTP" in sk.render([h], "python"))
+    check("socks4 uri", sk.render([s4], "uri") == "socks4://9.9.9.9:1080")
+    check("socks4 proxychains", "socks4 9.9.9.9 1080" in sk.render([s4], "proxychains"))
+    check("addr strips scheme", h.addr == "5.6.7.8:8080")
+    check("split_scheme parses", sk.split_scheme("http://5.6.7.8:8080") == ("http", "5.6.7.8", 8080))
+    check("split_scheme defaults socks5", sk.split_scheme("1.2.3.4:1080") == ("socks5", "1.2.3.4", 1080))
+
+
+def test_socks4_and_http_connect():
+    # a SOCKS4 server that grants the request → connect returns a socket
+    def s4_grant(conn):
+        conn.recv(64)
+        conn.sendall(b"\x00\x5a" + b"\x00" * 6)   # request granted
+    host, port, _ = serve(s4_grant)
+    try:
+        sk.socks4_connect(host, port, "1.1.1.1", 80, 5).close()
+        check("SOCKS4 grant accepted", True)
+    except Exception as e:
+        check(f"SOCKS4 grant accepted ({e})", False)
+
+    def s4_reject(conn):
+        conn.recv(64)
+        conn.sendall(b"\x00\x5b" + b"\x00" * 6)   # rejected
+    host, port, _ = serve(s4_reject)
+    try:
+        sk.socks4_connect(host, port, "1.1.1.1", 80, 5)
+        check("SOCKS4 rejection is raised", False)
+    except OSError:
+        check("SOCKS4 rejection is raised", True)
+
+    def http_ok(conn):
+        conn.recv(256)
+        conn.sendall(b"HTTP/1.1 200 Connection established\r\n\r\n")
+    host, port, _ = serve(http_ok)
+    try:
+        sk.http_connect(host, port, "1.1.1.1", 80, 5).close()
+        check("HTTP CONNECT 200 accepted", True)
+    except Exception as e:
+        check(f"HTTP CONNECT 200 accepted ({e})", False)
+
+    def http_deny(conn):
+        conn.recv(256)
+        conn.sendall(b"HTTP/1.1 403 Forbidden\r\n\r\n")
+    host, port, _ = serve(http_deny)
+    try:
+        sk.http_connect(host, port, "1.1.1.1", 80, 5)
+        check("HTTP CONNECT refusal is raised", False)
+    except OSError:
+        check("HTTP CONNECT refusal is raised", True)
 
 
 def test_scan_detects_socks5():
@@ -178,9 +238,10 @@ def test_history_keeps_failures():
 if __name__ == "__main__":
     print("sockrates protocol self-test")
     for fn in (test_connect_granted, test_connect_refused, test_auth_required,
+               test_socks4_and_http_connect,
                test_mtproto_genuine, test_mtproto_wrong_constructor,
                test_mtproto_wrong_nonce, test_scan_detects_socks5, test_expand_hosts,
-               test_formats, test_history_keeps_failures):
+               test_formats, test_proxy_types, test_history_keeps_failures):
         fn()
     print(f"\n{'FAILED: ' + ', '.join(FAILS) if FAILS else 'all good'}")
     sys.exit(1 if FAILS else 0)

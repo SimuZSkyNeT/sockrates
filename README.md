@@ -10,9 +10,9 @@
   <img alt="Platform" src="https://img.shields.io/badge/platform-Linux-lightgrey.svg">
 </p>
 
-Sockrates finds open **SOCKS5** proxies and cross-examines each one until it demonstrates
-that it reaches the target you actually care about — **Telegram included**, both MTProto and
-the Bot API.
+Sockrates finds open proxies — **SOCKS5, SOCKS4 and HTTP/HTTPS** — and cross-examines each one
+until it demonstrates that it reaches the target you actually care about — **Telegram
+included**, both MTProto and the Bot API.
 
 It runs in your terminal **and** as a desktop app. It has **no third-party dependencies**.
 
@@ -93,8 +93,8 @@ never pretends otherwise:
 
 | | |
 |---|---|
-| **Debian, Ubuntu, Mint** | `sudo apt install ./sockrates_0.2.3_all.deb` |
-| **Fedora, RHEL, openSUSE** | `sudo dnf install ./sockrates-0.2.3-1.noarch.rpm` |
+| **Debian, Ubuntu, Mint** | `sudo apt install ./sockrates_0.3.0_all.deb` |
+| **Fedora, RHEL, openSUSE** | `sudo dnf install ./sockrates-0.3.0-1.noarch.rpm` |
 | **Arch, Manjaro** | `cd packaging && makepkg -si` |
 | **Anywhere** | `pipx install sockrates` |
 | **From source** | `git clone … && python3 sockrates.py --help` |
@@ -116,8 +116,11 @@ Full guide: **[Installing](docs/install.md)**
 # desktop app
 python3 sockrates.py --gui
 
-# Telegram user clients / Telethon
+# Telegram user clients / Telethon (SOCKS5)
 python3 sockrates.py --target telegram-mtproto --out mtproto.txt
+
+# every proxy type at once
+python3 sockrates.py --type all --target https --out all.txt
 
 # Telegram bots, certificate verified
 python3 sockrates.py --target telegram-bot --out bots.txt

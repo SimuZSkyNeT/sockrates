@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sockrates"
-version = "0.2.3"
+version = "0.3.0"
 description = "Find open SOCKS5 proxies and make every one of them prove it works — Telegram included"
 readme = "README.md"
 requires-python = ">=3.9"

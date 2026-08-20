@@ -92,7 +92,7 @@ class App:
                     "updates": bool(self.v_updates.get()), "fresh": bool(self.v_fresh.get()),
                     "srcmode": self.v_srcmode.get(), "scan": self.v_scan.get(),
                     "ports": self.v_ports.get(),
-                    "sources": [u for v, u in self.src_vars if v.get()],
+                    "types": [pt for pt, v in self.type_vars.items() if v.get()],
                 }, f, indent=2)
         except Exception:
             pass
@@ -122,10 +122,10 @@ class App:
             self.v_scan.set(c.get("scan", ""))
             self.v_ports.set(c.get("ports", ""))
             self._srcmode()
-            keep = set(c.get("sources") or [])
+            keep = set(c.get("types") or [])
             if keep:
-                for v, u in self.src_vars:
-                    v.set(u in keep)
+                for pt, v in self.type_vars.items():
+                    v.set(pt in keep)
             self._toggle_custom()
         except Exception:
             pass
@@ -327,21 +327,20 @@ class App:
                         value="lists", variable=self.v_srcmode,
                         command=self._srcmode).pack(anchor="w")
         box = ttk.Frame(f)
-        box.pack(fill="x", padx=(22, 0), pady=(2, 10))
-        self.src_vars = []
-        for i, url in enumerate(ph.SOURCES_SOCKS5):
-            v = tk.BooleanVar(value=True)
-            self.src_vars.append((v, url))
-            name = url.split("/")[2]
-            tail = url.rstrip("/").split("/")[-1][:30]
-            ttk.Checkbutton(box, variable=v, text=f"{name}  ·  {tail}").grid(
-                row=i % 6, column=i // 6, sticky="w", padx=(0, 26), pady=1)
-        sbtn = ttk.Frame(f)
-        sbtn.pack(anchor="w", padx=(22, 0))
-        ttk.Button(sbtn, text="Select all",
-                   command=lambda: [v.set(True) for v, _ in self.src_vars]).pack(side="left")
-        ttk.Button(sbtn, text="Select none",
-                   command=lambda: [v.set(False) for v, _ in self.src_vars]).pack(side="left", padx=8)
+        box.pack(fill="x", padx=(22, 0), pady=(2, 4))
+        ttk.Label(box, text="Proxy types:", style="Muted.TLabel").pack(side="left")
+        # one checkbox per proxy type; the number of source lists behind each is
+        # shown so the user knows what they're pulling.
+        self.type_vars = {}
+        for pt in ph.PROXY_TYPES:
+            v = tk.BooleanVar(value=(pt == "socks5"))
+            self.type_vars[pt] = v
+            n = len(ph.SOURCES.get(pt, []))
+            ttk.Checkbutton(box, variable=v, text=f"{pt.upper()} ({n})").pack(
+                side="left", padx=(12, 0))
+        ttk.Label(f, text="SOCKS5 for Telegram user clients (Telethon); HTTP/SOCKS4 also work "
+                          "for the HTTPS and Bot-API targets.", style="Muted.TLabel").pack(
+            anchor="w", padx=(22, 0), pady=(2, 10))
 
         ttk.Separator(f, orient="horizontal").pack(fill="x", pady=12)
 
@@ -636,9 +635,9 @@ class App:
                     "Only do this on ranges you own or are authorised to test."):
                 return
         else:
-            srcs = [u for v, u in self.src_vars if v.get()]
+            srcs = [pt for pt, v in self.type_vars.items() if v.get()]
             if not srcs:
-                messagebox.showerror("Sockrates", "Pick at least one source.")
+                messagebox.showerror("Sockrates", "Pick at least one proxy type.")
                 return
         self._reset()
         self.running = True
@@ -682,18 +681,19 @@ class App:
     def _work(self, target: str, sources: list[str], preset: list[str] | None,
               scan_spec: list[str] | None = None):
         try:
+            types = [pt for pt, v in self.type_vars.items() if v.get()] or ["socks5"]
             if scan_spec is not None:
                 self.q.put(("log", f"scanning {len(scan_spec):,} host:port pairs "
-                                   "— knocking for open SOCKS5 ports…"))
+                                   f"for {', '.join(types)}…"))
                 t0 = time.time()
                 proxies = ph.scan(scan_spec, self._num(self.v_workers, 600),
-                                  min(self._num(self.v_timeout, 6.0), 4.0))
+                                  min(self._num(self.v_timeout, 6.0), 4.0), types=types)
                 self.q.put(("log", f"{len(proxies)} open port(s) in {time.time()-t0:.1f}s "
                                    "— now verifying each really works"))
             elif preset is None:
-                self.q.put(("log", f"collecting from {len(sources)} sources…"))
+                self.q.put(("log", f"collecting {', '.join(types)}…"))
                 t0 = time.time()
-                proxies = ph.collect(sources)
+                proxies = ph.collect(types, verbose=False)
                 self.q.put(("log", f"{len(proxies):,} unique candidates in {time.time()-t0:.1f}s"))
             else:
                 proxies = preset

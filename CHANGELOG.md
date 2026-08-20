@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project follows [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] — 2026-08-21
+
+### Added
+- **All proxy types, not just SOCKS5.** Sockrates now hunts and verifies **SOCKS5, SOCKS4 and
+  HTTP/HTTPS** proxies. Pick any mix with `--type socks5,http` (or `--type all`); the desktop
+  app has a checkbox per type. Every type goes through the identical verification — TLS
+  certificate check, MTProto handshake, liar control — only the tunnel differs. Output carries
+  the scheme (`socks5://`, `http://`) in the uri/csv/json/proxychains/python formats.
+- **More sources**, curated by measured hit rate rather than popularity: added fresh
+  protocol-separated lists (yakumo checked lists, databay, iplocate, vakhov, vmheaven, Zaeem20)
+  and *dropped* two high-star megadumps that verified at 0%.
+
 ## [0.2.3] — 2026-08-21
 
 ### Fixed
