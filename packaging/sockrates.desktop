@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Sockrates
+GenericName=Proxy Finder
+Comment=Find open SOCKS5 proxies and verify they really work
+Exec=sockrates-gui
+Icon=sockrates
+Terminal=false
+Categories=Network;Utility;Security;
+Keywords=proxy;socks5;telegram;mtproto;network;
+StartupNotify=true

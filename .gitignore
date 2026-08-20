@@ -3,6 +3,10 @@ __pycache__/
 *.egg-info/
 .venv/
 
+# build output
+dist/
+build/
+
 # hunt output — never commit proxy lists
 *.txt
 *.csv

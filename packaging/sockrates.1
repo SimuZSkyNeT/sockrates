@@ -1,0 +1,106 @@
+.TH SOCKRATES 1 "August 2026" "sockrates 0.1.0" "User Commands"
+.SH NAME
+sockrates \- find open SOCKS5 proxies and make each one prove it works
+.SH SYNOPSIS
+.B sockrates
+.RI [ options ]
+.SH DESCRIPTION
+.B sockrates
+collects SOCKS5 proxies from public lists and cross-examines every candidate until it
+demonstrates that it reaches the target you care about. Finding proxies is trivial;
+discarding the ones that do not work is the entire problem, so nothing is taken on the
+proxy's word.
+.PP
+For TLS targets the handshake is completed
+.I through
+the proxy and the certificate is verified. For Telegram datacenters a real MTProto
+handshake is performed and a valid
+.B resPQ
+carrying our own nonce is required. Every candidate is additionally asked to connect to an
+unroutable address; anything reporting success there is discarded as a liar.
+.SH OPTIONS
+.TP
+.BI \-\-target " NAME|HOST:PORT"
+What the proxy must reach:
+.BR telegram\-bot ", " telegram\-mtproto ", " https ,
+or any
+.IR host:port .
+Default:
+.BR telegram\-bot .
+.TP
+.BI \-\-cert\-contains " TEXT"
+Require the TLS certificate to mention TEXT.
+.TP
+.BI \-\-in " FILE"
+Re-test an existing list instead of downloading.
+.TP
+.BI \-\-out " FILE"
+Where to write. Default is standard output.
+.TP
+.BI \-\-format " NAME"
+One of
+.BR plain ", " uri ", " csv ", " json ", " proxychains ", " python ", " curl .
+.TP
+.BI \-\-watch " MIN"
+Never stop: re-hunt every MIN minutes and keep the output file true.
+.TP
+.BI \-\-max\-latency " S"
+Drop anything slower than S seconds.
+.TP
+.BI \-\-min\-age " HOURS"
+Only proxies known to have worked for at least this long.
+.TP
+.BI \-\-min\-reliability " PCT"
+Only proxies that passed at least PCT percent of past checks.
+.TP
+.B \-\-country ", " \-\-only\-country " CC"
+Look up, and optionally filter by, country.
+.TP
+.BI \-\-workers " N" ", " \-\-timeout " S"
+Concurrency (default 600) and per-proxy timeout (default 8).
+.TP
+.B \-\-no\-strict
+Skip the liar control. Faster, worse results.
+.TP
+.B \-\-gui
+Open the desktop application instead of running in the terminal.
+.SH FILES
+.TP
+.I ~/.sockrates/history.json
+What has been observed about each proxy: when it was first seen working, how many checks it
+has been through, and how many it passed.
+.TP
+.I ~/.sockrates.json
+Last settings used by the desktop application.
+.SH EXIT STATUS
+.TP
+.B 0
+Working proxies were found.
+.TP
+.B 1
+Nothing to test.
+.TP
+.B 2
+Tested, but nothing survived.
+.TP
+.B 3
+The desktop app was requested but Tkinter is missing.
+.SH EXAMPLES
+.PP
+Keep a file permanently true, refreshed every ten minutes:
+.PP
+.RS
+.B sockrates \-\-target telegram\-mtproto \-\-watch 10 \-\-out live.txt
+.RE
+.PP
+Only proxies with a day of history behind them, as a spreadsheet:
+.PP
+.RS
+.B sockrates \-\-min\-age 24 \-\-min\-reliability 80 \-\-format csv \-\-out proven.csv
+.RE
+.SH SEE ALSO
+Full documentation at
+.UR https://github.com/SimuZSkyNeT/sockrates
+.UE
+.SH LICENSE
+Apache License 2.0.

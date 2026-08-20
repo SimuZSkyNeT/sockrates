@@ -23,6 +23,9 @@ First release.
 - Country lookup and filtering.
 - An **About** tab with the donation address and an update check that reads the published
   changelog, so it can show what a new version contains instead of just its number.
+- Packages for Debian/Ubuntu (`.deb`), Fedora/RHEL/openSUSE (`.rpm`), Arch (`PKGBUILD`) and
+  PyPI (wheel + sdist), a `Makefile` that builds them all, a man page, a desktop entry and
+  icons — plus CI that builds and attaches them to each release.
 - A Tkinter desktop app (`--gui`) with live results, sortable columns, source selection, a
   filter box, right-click actions, auto-refresh, persisted settings, and re-verification before
   every save or copy.

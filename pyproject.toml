@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sockrates"
+version = "0.1.0"
+description = "Find open SOCKS5 proxies and make every one of them prove it works — Telegram included"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+authors = [{ name = "SimuZSkyNeT" }]
+keywords = ["socks5", "proxy", "proxy-checker", "telegram", "mtproto", "telethon"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Environment :: X11 Applications",
+  "Intended Audience :: Developers",
+  "Intended Audience :: System Administrators",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Topic :: Internet :: Proxy Servers",
+  "Topic :: System :: Networking",
+]
+# No runtime dependencies, on purpose. The desktop app needs Tkinter, which ships
+# with CPython but is packaged separately by some distributions — that is a system
+# package (python3-tk), not something pip can or should install.
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/SimuZSkyNeT/sockrates"
+Documentation = "https://github.com/SimuZSkyNeT/sockrates/tree/main/docs"
+Changelog = "https://github.com/SimuZSkyNeT/sockrates/blob/main/CHANGELOG.md"
+Issues = "https://github.com/SimuZSkyNeT/sockrates/issues"
+
+[project.scripts]
+sockrates = "sockrates:main"
+
+[project.gui-scripts]
+sockrates-gui = "sockrates_gui:main"
+
+[tool.setuptools]
+py-modules = ["sockrates", "sockrates_gui"]

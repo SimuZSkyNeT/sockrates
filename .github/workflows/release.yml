@@ -1,0 +1,54 @@
+name: Release
+
+# Build the packages when a version tag is pushed and attach them to the release,
+# so nobody has to trust a binary somebody built on their laptop.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  packages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Self-test
+        run: python tests/test_protocol.py
+
+      - name: Build wheel and sdist
+        run: |
+          python -m pip install --quiet build
+          python -m build
+
+      - name: Build .deb
+        run: ./packaging/build-deb.sh
+
+      - name: Build .rpm
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y rpm
+          make rpm RPMFLAGS=--nodeps
+
+      - name: Show what was built
+        run: ls -lh dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages
+          path: |
+            dist/*.deb
+            dist/*.rpm
+            dist/*.whl
+            dist/*.tar.gz
+
+      - name: Attach to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${GITHUB_REF_NAME}" dist/*.deb dist/*.rpm dist/*.whl dist/*.tar.gz --clobber

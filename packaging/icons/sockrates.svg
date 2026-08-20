@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Sockrates: a lens that interrogates, and only lets the true one through. -->
+  <rect width="256" height="256" rx="56" fill="#15181d"/>
+  <circle cx="112" cy="108" r="58" fill="none" stroke="#4da3ff" stroke-width="14"/>
+  <path d="M154 150 L206 202" stroke="#4da3ff" stroke-width="20" stroke-linecap="round"/>
+  <path d="M86 108 l18 20 l34 -42" fill="none" stroke="#3ddc84" stroke-width="14"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -89,20 +89,20 @@ never pretends otherwise:
 
 ## Install
 
-```bash
-git clone https://github.com/SimuZSkyNeT/sockrates.git
-cd sockrates
-python3 sockrates.py --help
-```
+| | |
+|---|---|
+| **Debian, Ubuntu, Mint** | `sudo apt install ./sockrates_0.1.0_all.deb` |
+| **Fedora, RHEL, openSUSE** | `sudo dnf install ./sockrates-0.1.0-1.noarch.rpm` |
+| **Arch, Manjaro** | `cd packaging && makepkg -si` |
+| **Anywhere** | `pipx install sockrates` |
+| **From source** | `git clone … && python3 sockrates.py --help` |
 
-Python 3.9 or newer. Nothing to `pip install`. The desktop app needs Tkinter, which ships with
-Python but some distributions split it out:
+Packages are attached to [every release](https://github.com/SimuZSkyNeT/sockrates/releases).
+Python 3.9 or newer; nothing else to install. The desktop app needs Tkinter, which ships with
+Python but some distributions split it out (`python3-tk`, `python3-tkinter`, `tk`) — the
+packages list it as recommended, so `apt`/`dnf` will offer it.
 
-```bash
-sudo apt install python3-tk      # Debian / Ubuntu
-sudo dnf install python3-tkinter # Fedora
-sudo pacman -S tk                # Arch
-```
+Full guide: **[Installing](docs/install.md)**
 
 ## Usage
 

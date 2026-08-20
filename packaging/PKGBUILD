@@ -1,0 +1,47 @@
+# Arch Linux / Manjaro / EndeavourOS
+# Maintainer: SimuZSkyNeT <simuzcrypto@gmail.com>
+pkgname=sockrates
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Find open SOCKS5 proxies and make every one of them prove it works — Telegram included"
+arch=('any')
+url="https://github.com/SimuZSkyNeT/sockrates"
+license=('Apache-2.0')
+depends=('python')
+optdepends=('tk: the desktop application')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz")
+sha256sums=('SKIP')   # replaced by `updpkgsums` at release time
+
+check() {
+  cd "$pkgname-$pkgver"
+  python tests/test_protocol.py
+}
+
+package() {
+  cd "$pkgname-$pkgver"
+  local site
+  site=$(python -c 'import site; print(site.getsitepackages()[0])')
+
+  install -Dm644 sockrates.py     "$pkgdir$site/sockrates.py"
+  install -Dm644 sockrates_gui.py "$pkgdir$site/sockrates_gui.py"
+
+  for name in sockrates sockrates-gui; do
+    local mod=${name//-/_}
+    install -d "$pkgdir/usr/bin"
+    printf '#!/usr/bin/python\nimport sys\nfrom %s import main\nsys.exit(main())\n' \
+      "$mod" > "$pkgdir/usr/bin/$name"
+    chmod 755 "$pkgdir/usr/bin/$name"
+  done
+
+  install -Dm644 packaging/sockrates.1 "$pkgdir/usr/share/man/man1/sockrates.1"
+  install -Dm644 packaging/sockrates.desktop \
+    "$pkgdir/usr/share/applications/sockrates.desktop"
+  for s in 16 24 32 48 64 128 256 512; do
+    install -Dm644 "packaging/icons/sockrates-$s.png" \
+      "$pkgdir/usr/share/icons/hicolor/${s}x${s}/apps/sockrates.png"
+  done
+  install -Dm644 packaging/icons/sockrates.svg \
+    "$pkgdir/usr/share/icons/hicolor/scalable/apps/sockrates.svg"
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 NOTICE  "$pkgdir/usr/share/licenses/$pkgname/NOTICE"
+}
