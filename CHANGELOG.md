@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project follows [Semantic Versioning](https://semver.org/).
 
+## [0.2.3] — 2026-08-21
+
+### Fixed
+- Clearing the scan range and running now falls back to the public lists instead of demanding
+  a range. Clicking a scan box selects scan mode; emptying it quietly returns to list mode.
+
 ## [0.2.2] — 2026-08-21
 
 ### Fixed

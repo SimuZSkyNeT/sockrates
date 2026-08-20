@@ -615,11 +615,14 @@ class App:
             return
         scan_spec = None
         srcs = []
+        # An empty range means "I'm not scanning" — fall back to the public lists
+        # instead of scolding the user. Clicking a scan box earlier flipped the
+        # mode; clearing it should quietly flip back.
+        if self.v_srcmode.get() == "scan" and not self.v_scan.get().strip():
+            self.v_srcmode.set("lists")
+            self._srcmode()
         if self.v_srcmode.get() == "scan":
             spec = self.v_scan.get().strip()
-            if not spec:
-                messagebox.showerror("Sockrates", "Enter a range to scan.")
-                return
             try:
                 ports = ([int(x) for x in self.v_ports.get().split(",") if x.strip()]
                          or ph.SOCKS5_PORTS)
