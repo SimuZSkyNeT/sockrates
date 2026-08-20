@@ -446,6 +446,101 @@ def collect(sources: Iterable[str], timeout: float = 12.0, verbose: bool = False
     return sorted(found)
 
 
+# --------------------------------------------------------------------------
+# Scan mode — generate candidates from IP ranges instead of public lists.
+#
+# Public lists are other people's discoveries. Scanning finds proxies nobody has
+# published yet: you enumerate a range, knock on the ports SOCKS5 usually lives
+# on, and keep whatever answers a SOCKS5 greeting. What survives then goes through
+# the exact same cross-examination as a listed proxy — a bare open port is not a
+# working proxy until it proves it.
+#
+# 🔴 This reaches out to machines that never advertised themselves. Only scan
+# ranges you own or are authorised to test. Port scanning is treated as
+# unauthorised access in some jurisdictions regardless of intent; the default
+# rate is deliberately gentle, and there is no "scan the whole internet" switch.
+# --------------------------------------------------------------------------
+SOCKS5_PORTS = [1080, 1081, 1085, 4145, 5678, 9050, 9051, 7890, 1090, 8080, 3128, 9999]
+
+
+def _socks5_open(host: str, port: int, timeout: float) -> bool:
+    """True if host:port answers a SOCKS5 no-auth greeting. Cheap pre-filter."""
+    try:
+        s = socket.create_connection((host, port), timeout=timeout)
+    except Exception:
+        return False
+    try:
+        s.settimeout(timeout)
+        s.sendall(b"\x05\x01\x00")
+        rep = _recv_exact(s, 2)   # read exactly 2 bytes: a split reply is not a refusal
+        return rep[0] == 0x05 and rep[1] in (0x00, 0x02)
+    except Exception:
+        return False
+    finally:
+        try:
+            s.close()
+        except Exception:
+            pass
+
+
+def expand_targets(spec: str, ports: list[int]) -> list[str]:
+    """Turn a CIDR / range / host into host:port candidates.
+
+    Accepts: 203.0.113.0/24 · 203.0.113.1-203.0.113.50 · 203.0.113.7 · a file of any.
+    """
+    hosts: list[str] = []
+    spec = spec.strip()
+    if os.path.exists(spec):
+        with open(spec) as f:
+            for line in f:
+                hosts += expand_hosts(line.strip())
+    else:
+        hosts = expand_hosts(spec)
+    return [f"{h}:{p}" for h in hosts for p in ports]
+
+
+def expand_hosts(spec: str) -> list[str]:
+    if not spec or spec.startswith("#"):
+        return []
+    if "/" in spec:
+        net = ipaddress.ip_network(spec, strict=False)
+        if net.num_addresses > 65536:
+            raise ValueError(f"{spec} is {net.num_addresses} addresses — "
+                             "scan a /16 or smaller, in pieces")
+        return [str(h) for h in net.hosts()]
+    if "-" in spec and spec.count(".") >= 3:
+        a, b = spec.split("-", 1)
+        start = int(ipaddress.ip_address(a.strip()))
+        end = int(ipaddress.ip_address(b.strip() if "." in b else a.rsplit(".", 1)[0] + "." + b.strip()))
+        if not 0 <= end - start <= 65536:
+            raise ValueError(f"{spec} spans too many addresses")
+        return [str(ipaddress.ip_address(i)) for i in range(start, end + 1)]
+    return [spec]
+
+
+def scan(targets: list[str], workers: int, timeout: float,
+         progress: bool = False) -> list[str]:
+    """Find host:port pairs that speak SOCKS5. Returns candidates, not verified."""
+    found: list[str] = []
+    done = 0
+    with futures.ThreadPoolExecutor(max_workers=workers) as ex:
+        futs = {}
+        for t in targets:
+            host, _, port = t.rpartition(":")
+            futs[ex.submit(_socks5_open, host, int(port), timeout)] = t
+        for f in futures.as_completed(futs):
+            done += 1
+            try:
+                if f.result():
+                    found.append(futs[f])
+            except Exception:
+                pass
+            if progress and done % 2000 == 0:
+                print(f"  … {done:,}/{len(targets):,} knocked, {len(found)} open",
+                      file=sys.stderr, flush=True)
+    return sorted(found)
+
+
 def hunt(proxies: list[str], target: str, workers: int, timeout: float,
          strict: bool, progress: bool = False, history: bool = True) -> list[Result]:
     out: list[Result] = []
@@ -546,6 +641,11 @@ def main(argv=None) -> int:
     ap.add_argument("--cert-contains", metavar="TEXT",
                     help="require the certificate to mention TEXT (implies --tls)")
     ap.add_argument("--in", dest="infile", help="test this file instead of downloading lists")
+    ap.add_argument("--scan", metavar="RANGE",
+                    help="discover proxies by scanning a CIDR / range / host instead of using "
+                         "public lists, e.g. 203.0.113.0/24. Only scan what you may.")
+    ap.add_argument("--ports", metavar="LIST",
+                    help="comma-separated ports for --scan (default: common SOCKS5 ports)")
     ap.add_argument("--out", default="-", help="where to write the good ones ('-' = stdout)")
     ap.add_argument("--json", dest="as_json", action="store_true",
                     help="shorthand for --format json")
@@ -601,7 +701,19 @@ def main(argv=None) -> int:
         return _watch(a, log)
 
     t0 = time.time()
-    if a.infile:
+    if a.scan:
+        ports = ([int(x) for x in a.ports.split(",") if x.strip()] if a.ports else SOCKS5_PORTS)
+        try:
+            targets = expand_targets(a.scan, ports)
+        except ValueError as e:
+            print(f"❌ {e}", file=sys.stderr)
+            return 2
+        log(f"🔭 scanning {a.scan} — {len(targets):,} host:port pairs on {len(ports)} port(s)")
+        log("   ⚠️  only scan ranges you own or are authorised to test")
+        proxies = scan(targets, a.workers, min(a.timeout, 4.0), progress=not a.quiet)
+        log(f"   {len(proxies)} open SOCKS5 port(s) in {time.time()-t0:.1f}s "
+            f"— now verifying each really works")
+    elif a.infile:
         with open(a.infile) as f:
             proxies = sorted({m.group(0) for line in f for m in [IPPORT_RX.search(line)] if m})
         log(f"📥 {len(proxies):,} proxies from {a.infile}")

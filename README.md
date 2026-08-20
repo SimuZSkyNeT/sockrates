@@ -15,11 +15,6 @@ the Bot API.
 
 It runs in your terminal **and** as a desktop app. It has **no third-party dependencies**.
 
-> **It is a verifier, not a scanner.** Sockrates only contacts addresses that are already
-> published on public proxy lists, one short connection per check. It does not sweep address
-> ranges, does not probe hosts nobody advertised, and never attempts authentication. See
-> [Responsible use](#responsible-use).
-
 <p align="center"><img src="docs/screenshot.png" alt="Sockrates desktop app" width="820"></p>
 
 ```console
@@ -128,6 +123,9 @@ python3 sockrates.py --target api.example.com:443 --cert-contains example.com
 # keep a file permanently true, refreshed every 10 minutes
 python3 sockrates.py --target telegram-mtproto --watch 10 --out live.txt
 
+# discover proxies by scanning a range you are allowed to test, then verify them
+python3 sockrates.py --scan 203.0.113.0/24 --target telegram-mtproto --out found.txt
+
 # only proxies we have known to work for a day and that passed 80% of our checks
 python3 sockrates.py --min-age 24 --min-reliability 80 --format csv --out proven.csv
 ```
@@ -158,9 +156,12 @@ idea. That carries obligations:
 - Do not use them to attack, flood, or evade a ban you were given for good reason.
 - Whether scanning and using open proxies is lawful **depends on where you are**. Check.
 
-Sockrates only connects to hosts that already advertise themselves on public proxy lists, and
-makes one short connection per check. It is a verifier, not a scanner: it does not sweep
-address ranges looking for open ports.
+By default Sockrates only connects to hosts already advertised on public proxy lists. It can
+**also scan** IP ranges you point it at (`--scan`), to find proxies nobody has published yet —
+and that power comes with a rule: **only scan ranges you own or are authorised to test.** Port
+scanning is treated as unauthorised access in some places regardless of intent. The default
+rate is gentle and there is no "scan the internet" switch; a `/16` is the largest range it
+will take in one go.
 
 ## Support the project
 

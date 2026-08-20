@@ -73,6 +73,8 @@ class App:
                     "only": self.v_only.get(), "auto": bool(self.v_auto.get()),
                     "every": int(self.v_every.get()), "autofile": self.v_autofile.get(),
                     "updates": bool(self.v_updates.get()), "fresh": bool(self.v_fresh.get()),
+                    "srcmode": self.v_srcmode.get(), "scan": self.v_scan.get(),
+                    "ports": self.v_ports.get(),
                     "sources": [u for v, u in self.src_vars if v.get()],
                 }, f, indent=2)
         except Exception:
@@ -99,6 +101,10 @@ class App:
             self.v_autofile.set(c.get("autofile", ""))
             self.v_updates.set(c.get("updates", True))
             self.v_fresh.set(c.get("fresh", True))
+            self.v_srcmode.set(c.get("srcmode", "lists"))
+            self.v_scan.set(c.get("scan", ""))
+            self.v_ports.set(c.get("ports", ""))
+            self._srcmode()
             keep = set(c.get("sources") or [])
             if keep:
                 for v, u in self.src_vars:
@@ -126,6 +132,11 @@ class App:
         s.configure("TLabel", background=BG, foreground=FG, font=UI)
         s.configure("Muted.TLabel", background=BG, foreground=MUTED)
         s.configure("Head.TLabel", background=BG, foreground=ACC, font=UIB)
+        s.configure("Brand.TLabel", background=BG, foreground=FG,
+                    font=("DejaVu Sans", 17, "bold"))
+        s.configure("Tagline.TLabel", background=BG, foreground=MUTED,
+                    font=("DejaVu Sans", 9, "italic"))
+        s.configure("Warn.TLabel", background=BG, foreground=WARN, font=UI)
         s.configure("TCheckbutton", background=BG, foreground=FG)
         s.map("TCheckbutton", background=[("active", BG)])
         s.configure("TRadiobutton", background=BG, foreground=FG)
@@ -146,9 +157,9 @@ class App:
         s.configure("TCombobox", fieldbackground=BG2, foreground=FG, arrowcolor=FG,
                     borderwidth=0, padding=4)
         s.configure("Treeview", background=BG2, fieldbackground=BG2, foreground=FG,
-                    rowheight=25, borderwidth=0, font=MONO)
+                    rowheight=27, borderwidth=0, font=MONO)
         s.configure("Treeview.Heading", background="#242a33", foreground=MUTED,
-                    font=UIB, relief="flat", padding=6)
+                    font=UIB, relief="flat", padding=7)
         s.map("Treeview.Heading", background=[("active", "#2f3742")])
         s.map("Treeview", background=[("selected", "#2b4a6f")],
               foreground=[("selected", FG)])
@@ -159,13 +170,29 @@ class App:
 
     # ---------------------------------------------------------------- build
     def _build(self):
-        wrap = ttk.Frame(self.root, padding=14)
+        wrap = ttk.Frame(self.root, padding=(16, 12, 16, 14))
         wrap.pack(fill="both", expand=True)
         wrap.columnconfigure(0, weight=1)
-        wrap.rowconfigure(2, weight=1)
+        wrap.rowconfigure(3, weight=1)
+
+        # --- header: a small drawn mark + wordmark, so a screenshot has an identity
+        head = ttk.Frame(wrap)
+        head.grid(row=0, column=0, sticky="ew", pady=(0, 12))
+        logo = tk.Canvas(head, width=34, height=34, bg=BG, highlightthickness=0)
+        logo.create_oval(4, 4, 24, 24, outline=ACC, width=3)
+        logo.create_line(22, 22, 31, 31, fill=ACC, width=4, capstyle="round")
+        logo.create_line(9, 13, 13, 18, fill=OK, width=3, capstyle="round")
+        logo.create_line(13, 18, 20, 9, fill=OK, width=3, capstyle="round")
+        logo.pack(side="left", padx=(0, 10))
+        tf = ttk.Frame(head)
+        tf.pack(side="left")
+        ttk.Label(tf, text="Sockrates", style="Brand.TLabel").pack(anchor="w")
+        ttk.Label(tf, text="Every proxy must prove itself.",
+                  style="Tagline.TLabel").pack(anchor="w")
+        ttk.Label(head, text=f"v{ph.__version__}", style="Muted.TLabel").pack(side="right")
 
         nb = ttk.Notebook(wrap)
-        nb.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+        nb.grid(row=1, column=0, sticky="ew", pady=(0, 10))
         nb.add(self._tab_target(nb), text="   Target   ")
         nb.add(self._tab_sources(nb), text="   Sources   ")
         nb.add(self._tab_tuning(nb), text="   Tuning   ")
@@ -173,7 +200,7 @@ class App:
 
         # --- action bar
         bar = ttk.Frame(wrap)
-        bar.grid(row=1, column=0, sticky="ew", pady=(0, 10))
+        bar.grid(row=2, column=0, sticky="ew", pady=(0, 10))
         self.b_go = ttk.Button(bar, text="▶  Hunt", style="Go.TButton", command=self.start)
         self.b_go.pack(side="left")
         self.b_stop = ttk.Button(bar, text="■  Stop", style="Stop.TButton",
@@ -194,7 +221,7 @@ class App:
 
         # --- results
         card = ttk.Frame(wrap, style="Card.TFrame", padding=1)
-        card.grid(row=2, column=0, sticky="nsew")
+        card.grid(row=3, column=0, sticky="nsew")
         card.rowconfigure(0, weight=1)
         card.columnconfigure(0, weight=1)
         cols = ("proxy", "latency", "country", "verified", "age", "reliability")
@@ -210,6 +237,8 @@ class App:
         sb = ttk.Scrollbar(card, orient="vertical", command=self.tree.yview)
         sb.grid(row=0, column=1, sticky="ns")
         self.tree.configure(yscrollcommand=sb.set)
+        self.tree.tag_configure("even", background=BG2)
+        self.tree.tag_configure("odd", background="#20242c")
         self.tree.tag_configure("fast", foreground=OK)
         self.tree.tag_configure("slow", foreground=WARN)
 
@@ -228,7 +257,7 @@ class App:
 
         # --- progress + log
         foot = ttk.Frame(wrap)
-        foot.grid(row=3, column=0, sticky="ew", pady=(10, 0))
+        foot.grid(row=4, column=0, sticky="ew", pady=(10, 0))
         foot.columnconfigure(0, weight=1)
         self.pb = ttk.Progressbar(foot, mode="determinate")
         self.pb.grid(row=0, column=0, sticky="ew")
@@ -270,25 +299,63 @@ class App:
 
     def _tab_sources(self, parent) -> ttk.Frame:
         f = ttk.Frame(parent, padding=14)
-        ttk.Label(f, text="Where to look. Dead sources are skipped automatically.",
-                  style="Head.TLabel").pack(anchor="w", pady=(0, 8))
+        self.v_srcmode = tk.StringVar(value="lists")
+        ttk.Label(f, text="Where the candidates come from", style="Head.TLabel").pack(
+            anchor="w", pady=(0, 8))
+
+        ttk.Radiobutton(f, text="Public lists — proxies other people have already found",
+                        value="lists", variable=self.v_srcmode,
+                        command=self._srcmode).pack(anchor="w")
         box = ttk.Frame(f)
-        box.pack(fill="both", expand=True)
+        box.pack(fill="x", padx=(22, 0), pady=(2, 10))
         self.src_vars = []
         for i, url in enumerate(ph.SOURCES_SOCKS5):
             v = tk.BooleanVar(value=True)
             self.src_vars.append((v, url))
             name = url.split("/")[2]
-            tail = url.rstrip("/").split("/")[-1][:34]
+            tail = url.rstrip("/").split("/")[-1][:30]
             ttk.Checkbutton(box, variable=v, text=f"{name}  ·  {tail}").grid(
-                row=i % 6, column=i // 6, sticky="w", padx=(0, 30), pady=1)
-        btns = ttk.Frame(f)
-        btns.pack(anchor="w", pady=(12, 0))
-        ttk.Button(btns, text="Select all",
+                row=i % 6, column=i // 6, sticky="w", padx=(0, 26), pady=1)
+        sbtn = ttk.Frame(f)
+        sbtn.pack(anchor="w", padx=(22, 0))
+        ttk.Button(sbtn, text="Select all",
                    command=lambda: [v.set(True) for v, _ in self.src_vars]).pack(side="left")
-        ttk.Button(btns, text="Select none",
+        ttk.Button(sbtn, text="Select none",
                    command=lambda: [v.set(False) for v, _ in self.src_vars]).pack(side="left", padx=8)
+
+        ttk.Separator(f, orient="horizontal").pack(fill="x", pady=12)
+
+        ttk.Radiobutton(f, text="Scan a range — discover proxies nobody has published yet",
+                        value="scan", variable=self.v_srcmode,
+                        command=self._srcmode).pack(anchor="w")
+        sc = ttk.Frame(f)
+        sc.pack(anchor="w", padx=(22, 0), pady=(4, 0))
+        ttk.Label(sc, text="Range").grid(row=0, column=0, sticky="w")
+        self.v_scan = tk.StringVar()
+        self.e_scan = ttk.Entry(sc, textvariable=self.v_scan, width=28)
+        self.e_scan.grid(row=0, column=1, padx=(8, 16))
+        ttk.Label(sc, text="Ports").grid(row=0, column=2, sticky="w")
+        self.v_ports = tk.StringVar()
+        self.e_ports = ttk.Entry(sc, textvariable=self.v_ports, width=20)
+        self.e_ports.grid(row=0, column=3, padx=8)
+        ttk.Label(f, text="e.g.  203.0.113.0/24   ·   .1-.50   ·   a single host   "
+                          "(blank ports = common SOCKS5 ports)",
+                  style="Muted.TLabel").pack(anchor="w", padx=(22, 0), pady=(4, 0))
+        self.lbl_scanwarn = ttk.Label(
+            f, text="⚠  Only scan ranges you own or are authorised to test.",
+            style="Warn.TLabel")
+        self.lbl_scanwarn.pack(anchor="w", padx=(22, 0), pady=(6, 0))
+        self._srcmode()
         return f
+
+    def _srcmode(self):
+        scanning = self.v_srcmode.get() == "scan"
+        st = "normal" if scanning else "disabled"
+        for w in (self.e_scan, self.e_ports):
+            w.configure(state=st)
+        # the button says what it will do (may not exist yet during first build)
+        if hasattr(self, "b_go"):
+            self.b_go.configure(text="▶  Scan" if scanning else "▶  Hunt")
 
     def _tab_tuning(self, parent) -> ttk.Frame:
         f = ttk.Frame(parent, padding=14)
@@ -468,16 +535,37 @@ class App:
         except ValueError as e:
             messagebox.showerror("Sockrates", str(e))
             return
-        srcs = [u for v, u in self.src_vars if v.get()]
-        if not srcs:
-            messagebox.showerror("Sockrates", "Pick at least one source.")
-            return
+        scan_spec = None
+        srcs = []
+        if self.v_srcmode.get() == "scan":
+            spec = self.v_scan.get().strip()
+            if not spec:
+                messagebox.showerror("Sockrates", "Enter a range to scan.")
+                return
+            try:
+                ports = ([int(x) for x in self.v_ports.get().split(",") if x.strip()]
+                         or ph.SOCKS5_PORTS)
+                scan_spec = ph.expand_targets(spec, ports)   # validates size / format
+            except ValueError as e:
+                messagebox.showerror("Sockrates", str(e))
+                return
+            if not messagebox.askokcancel(
+                    "Scan a range",
+                    f"About to scan {len(scan_spec):,} host:port pairs in {spec}.\n\n"
+                    "Only do this on ranges you own or are authorised to test."):
+                return
+        else:
+            srcs = [u for v, u in self.src_vars if v.get()]
+            if not srcs:
+                messagebox.showerror("Sockrates", "Pick at least one source.")
+                return
         self._reset()
         self.running = True
         self.stop_flag.clear()
         self.b_go.configure(state="disabled")
         self.b_stop.configure(state="normal")
-        threading.Thread(target=self._work, args=(target, srcs, None), daemon=True).start()
+        threading.Thread(target=self._work, args=(target, srcs, None, scan_spec),
+                         daemon=True).start()
 
     def retest(self):
         if self.running:
@@ -503,9 +591,18 @@ class App:
         self.stop_flag.set()
         self.q.put(("log", "stopping — letting running checks finish…"))
 
-    def _work(self, target: str, sources: list[str], preset: list[str] | None):
+    def _work(self, target: str, sources: list[str], preset: list[str] | None,
+              scan_spec: list[str] | None = None):
         try:
-            if preset is None:
+            if scan_spec is not None:
+                self.q.put(("log", f"scanning {len(scan_spec):,} host:port pairs "
+                                   "— knocking for open SOCKS5 ports…"))
+                t0 = time.time()
+                proxies = ph.scan(scan_spec, int(self.v_workers.get()),
+                                  min(float(self.v_timeout.get()), 4.0))
+                self.q.put(("log", f"{len(proxies)} open port(s) in {time.time()-t0:.1f}s "
+                                   "— now verifying each really works"))
+            elif preset is None:
                 self.q.put(("log", f"collecting from {len(sources)} sources…"))
                 t0 = time.time()
                 proxies = ph.collect(sources)
@@ -593,11 +690,13 @@ class App:
         self.q.put(("refresh", None))
 
     def _insert(self, r: ph.Result):
-        tag = "fast" if r.latency <= 1.0 else ("slow" if r.latency > 3 else "")
+        speed = "fast" if r.latency <= 1.0 else ("slow" if r.latency > 3 else "")
+        # zebra striping keeps a long list readable; speed colour rides on top
+        zebra = "odd" if (len(self.tree.get_children()) % 2) else "even"
         rel = f"{100*r.reliability:.0f}% of {r.checks}" if r.checks else "—"
         self.tree.insert("", "end", values=(r.proxy, f"{r.latency:.2f}s", r.country or "—",
                                             r.verified, r.age_label if r.checks else "—", rel),
-                         tags=(tag,))
+                         tags=(zebra, speed))
 
     def _fresh(self, rows: list[ph.Result]) -> list[ph.Result]:
         """Re-test `rows` right now and return only the survivors."""

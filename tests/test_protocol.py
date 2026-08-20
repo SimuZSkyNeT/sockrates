@@ -142,6 +142,29 @@ def test_formats():
     check("every format renders", all(sk.render([r], k) for k in sk.FORMATS))
 
 
+def test_scan_detects_socks5():
+    """The port-knock must recognise a SOCKS5 greeting and reject anything else."""
+    host, port, _ = serve(lambda c: (c.recv(3), c.sendall(b"\x05\x00")))
+    check("scan detects an open SOCKS5 port", sk._socks5_open(host, port, 5) is True)
+
+    # a server that answers something that is not SOCKS5 must be rejected
+    host, port, _ = serve(lambda c: (c.recv(3), c.sendall(b"HTTP")))
+    check("scan rejects a non-SOCKS5 port", sk._socks5_open(host, port, 5) is False)
+
+    check("scan rejects a closed port", sk._socks5_open("127.0.0.1", 1, 1) is False)
+
+
+def test_expand_hosts():
+    check("CIDR expands", len(sk.expand_hosts("203.0.113.0/30")) == 2)
+    check("range expands", len(sk.expand_hosts("203.0.113.1-203.0.113.10")) == 10)
+    check("single host", sk.expand_hosts("203.0.113.7") == ["203.0.113.7"])
+    try:
+        sk.expand_hosts("10.0.0.0/8")   # 16M addresses
+        check("oversized CIDR is refused", False)
+    except ValueError:
+        check("oversized CIDR is refused", True)
+
+
 def test_history_keeps_failures():
     """The score must not drift to 100% by forgetting the dead."""
     hist = {}
@@ -156,7 +179,8 @@ if __name__ == "__main__":
     print("sockrates protocol self-test")
     for fn in (test_connect_granted, test_connect_refused, test_auth_required,
                test_mtproto_genuine, test_mtproto_wrong_constructor,
-               test_mtproto_wrong_nonce, test_formats, test_history_keeps_failures):
+               test_mtproto_wrong_nonce, test_scan_detects_socks5, test_expand_hosts,
+               test_formats, test_history_keeps_failures):
         fn()
     print(f"\n{'FAILED: ' + ', '.join(FAILS) if FAILS else 'all good'}")
     sys.exit(1 if FAILS else 0)

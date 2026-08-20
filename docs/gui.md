@@ -21,8 +21,17 @@ The same four choices as `--target`, each spelling out what will be proven:
 
 ## Sources
 
-Every public list, individually checkable, with *Select all* / *Select none*. Turning off a
-source that has gone bad is faster than waiting for its timeout on every run.
+Two ways to get candidates, chosen with the radio buttons at the top:
+
+- **Public lists** — every source individually checkable, with *Select all* / *Select none*.
+  Turning off a source that has gone bad is faster than waiting for its timeout every run.
+- **Scan a range** — enter a CIDR (`203.0.113.0/24`), a range (`.1-.50`) or a single host, and
+  optional ports (blank uses the common SOCKS5 ports). Sockrates knocks on every port, then
+  verifies each open one exactly like a listed proxy. The button changes to **▶ Scan** and asks
+  you to confirm before it starts.
+
+> ⚠️ **Only scan ranges you own or are authorised to test.** Unsolicited port scanning is
+> treated as unauthorised access in some jurisdictions regardless of intent.
 
 ## Tuning
 

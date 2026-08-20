@@ -26,6 +26,8 @@ python3 sockrates.py --target 10.0.0.5:1080          # plain TCP reachability
 | flag | default | meaning |
 |---|---|---|
 | `--in FILE` | — | re-test an existing list instead of downloading |
+| `--scan RANGE` | — | discover proxies by scanning a CIDR / range / host instead of lists |
+| `--ports LIST` | common SOCKS5 ports | comma-separated ports for `--scan` |
 | `--out FILE` | `-` (stdout) | where to write |
 | `--format NAME` | `plain` | `plain`, `uri`, `csv`, `json`, `proxychains`, `python`, `curl` |
 | `--json` | — | shorthand for `--format json` |
@@ -52,6 +54,27 @@ python3 sockrates.py --target 10.0.0.5:1080          # plain TCP reachability
 | `--watch MIN` | off | never stop: re-hunt every MIN minutes, rewriting `--out` |
 | `--gui` | off | open the desktop app instead |
 | `--quiet` | off | no progress on stderr |
+
+## Scanning
+
+Instead of reading public lists, `--scan` finds proxies nobody has published yet: it enumerates
+a range, knocks on the ports SOCKS5 usually lives on, and every open port then goes through the
+**same** cross-examination as a listed proxy — an open port is not a working proxy until it
+proves it.
+
+```bash
+python3 sockrates.py --scan 203.0.113.0/24 --target telegram-mtproto --out found.txt
+python3 sockrates.py --scan 203.0.113.1-203.0.113.50 --ports 1080,1081,9050
+python3 sockrates.py --scan ranges.txt --target https   # a file of CIDRs/ranges
+```
+
+Accepted forms: a CIDR (`203.0.113.0/24`), an inclusive range (`.1-.50`), a single host, or a
+file containing any of these. A `/16` is the largest it will expand in one call.
+
+> ⚠️ **Only scan ranges you own or are explicitly authorised to test.** Reaching out to
+> machines that never advertised themselves is treated as unauthorised access in some
+> jurisdictions regardless of intent. Sockrates keeps the default rate gentle and refuses
+> anything larger than a `/16`, but the responsibility for *where* you point it is yours.
 
 ## Recipes
 

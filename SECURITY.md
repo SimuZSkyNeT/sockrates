@@ -2,9 +2,14 @@
 
 ## What this tool is
 
-Sockrates verifies proxies that **already advertise themselves** on public lists. It makes one
-short connection per candidate to check a claim. It is not a port scanner: it does not sweep
-address ranges, does not probe hosts nobody published, and does not attempt authentication.
+By default Sockrates verifies proxies that **already advertise themselves** on public lists,
+one short connection per candidate. It can **also** scan IP ranges you explicitly give it
+(`--scan`) to discover unpublished proxies — a deliberate, opt-in action, never the default,
+capped at a `/16` per call, with no facility to sweep the internet at large.
+
+**Only scan ranges you own or are authorised to test.** Unsolicited port scanning is treated
+as unauthorised access in some jurisdictions regardless of intent. Where you point `--scan` is
+your responsibility, not the tool's.
 
 ## What you should know before using the results
 

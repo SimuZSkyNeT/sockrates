@@ -9,6 +9,9 @@ this project follows [Semantic Versioning](https://semver.org/).
 First release.
 
 ### Added
+- **Scan mode** (`--scan`): discover proxies by scanning a CIDR / range / host you are
+  authorised to test, instead of reading public lists. Every open port is then verified like
+  any other candidate. Capped at a /16 per call.
 - SOCKS5 hunting across 11 public sources — roughly 2,500 unique candidates in under a second.
 - **Proof, not claims**: TLS handshake with certificate verification for HTTPS targets, a real
   MTProto `req_pq_multi` / `resPQ` exchange for Telegram datacenters, and a liar control that
