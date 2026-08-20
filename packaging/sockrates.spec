@@ -6,7 +6,7 @@
 %{!?python3_sitelib: %global python3_sitelib %(python3 -c "import sysconfig; print(sysconfig.get_path('purelib'))")}
 
 Name:           sockrates
-Version:        0.2.1
+Version:        0.2.2
 Release:        1%{?dist}
 Summary:        SOCKS5 proxy finder that makes every proxy prove it works
 
@@ -86,6 +86,8 @@ python3 tests/test_protocol.py
 %{_datadir}/icons/hicolor/*/apps/%{name}.*
 
 %changelog
+* Fri Aug 21 2026 SimuZSkyNeT <318048242+SimuZSkyNeT@users.noreply.github.com> - 0.2.2-1
+- Scan and custom-target fields are always typeable; clicking one selects its mode.
 * Fri Aug 21 2026 SimuZSkyNeT <318048242+SimuZSkyNeT@users.noreply.github.com> - 0.2.1-1
 - Fix keyboard focus in settings fields on some window managers; validate numeric inputs.
 * Thu Aug 20 2026 SimuZSkyNeT <318048242+SimuZSkyNeT@users.noreply.github.com> - 0.2.0-1

@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project follows [Semantic Versioning](https://semver.org/).
 
+## [0.2.2] — 2026-08-21
+
+### Fixed
+- **The scan Range/Ports and custom host:port fields could not be typed into.** They were
+  disabled until you first picked the matching radio button, and a disabled field looks exactly
+  like an active one — a dead black box. The fields are now always typeable; clicking or tabbing
+  into one selects its mode for you.
+
 ## [0.2.1] — 2026-08-21
 
 ### Fixed

@@ -305,11 +305,14 @@ class App:
         cf = ttk.Frame(f)
         cf.grid(row=5, column=0, columnspan=4, sticky="w", pady=(10, 0))
         ttk.Label(cf, text="host:port").pack(side="left")
-        self.e_host = ttk.Entry(cf, textvariable=self.v_host, width=28, state="disabled")
+        self.e_host = ttk.Entry(cf, textvariable=self.v_host, width=28)
         self.e_host.pack(side="left", padx=(8, 16))
         ttk.Label(cf, text="certificate must contain").pack(side="left")
-        self.e_cert = ttk.Entry(cf, textvariable=self.v_cert, width=22, state="disabled")
+        self.e_cert = ttk.Entry(cf, textvariable=self.v_cert, width=22)
         self.e_cert.pack(side="left", padx=8)
+        # same rule as the scan boxes: clicking here means "I want the custom target"
+        for w in (self.e_host, self.e_cert):
+            w.bind("<FocusIn>", lambda e: self.v_target.set("custom"), add="+")
         ttk.Label(f, text="Leave the certificate field empty to accept a plain TCP connection.",
                   style="Muted.TLabel").grid(row=6, column=0, columnspan=4, sticky="w", pady=(6, 0))
         return f
@@ -355,6 +358,10 @@ class App:
         self.v_ports = tk.StringVar()
         self.e_ports = ttk.Entry(sc, textvariable=self.v_ports, width=20)
         self.e_ports.grid(row=0, column=3, padx=8)
+        # 🔑 Clicking or typing in a scan box selects scan mode, so the field is
+        # never a dead black box. FocusIn covers both mouse and Tab.
+        for w in (self.e_scan, self.e_ports):
+            w.bind("<FocusIn>", lambda e: self._pick_mode("scan"), add="+")
         ttk.Label(f, text="e.g.  203.0.113.0/24   ·   .1-.50   ·   a single host   "
                           "(blank ports = common SOCKS5 ports)",
                   style="Muted.TLabel").pack(anchor="w", padx=(22, 0), pady=(4, 0))
@@ -366,13 +373,19 @@ class App:
         return f
 
     def _srcmode(self):
+        # 🔑 The scan fields are never disabled — a disabled ttk entry looks like
+        # a dead black box you cannot click into. They stay typeable; clicking or
+        # typing in one selects scan mode (see the FocusIn binding). Only the run
+        # button's label follows the mode.
         scanning = self.v_srcmode.get() == "scan"
-        st = "normal" if scanning else "disabled"
-        for w in (self.e_scan, self.e_ports):
-            w.configure(state=st)
-        # the button says what it will do (may not exist yet during first build)
         if hasattr(self, "b_go"):
             self.b_go.configure(text="▶  Scan" if scanning else "▶  Hunt")
+
+    def _pick_mode(self, mode: str):
+        """Typing/clicking in a scan field selects scan mode to match."""
+        if self.v_srcmode.get() != mode:
+            self.v_srcmode.set(mode)
+            self._srcmode()
 
     def _tab_tuning(self, parent) -> ttk.Frame:
         f = ttk.Frame(parent, padding=14)
@@ -574,9 +587,10 @@ class App:
                 os.execv(sys.executable, [sys.executable, os.path.abspath(sys.argv[0])] + sys.argv[1:])
 
     def _toggle_custom(self):
-        st = "normal" if self.v_target.get() == "custom" else "disabled"
-        self.e_host.configure(state=st)
-        self.e_cert.configure(state=st)
+        # kept for the radio's command and config load; the fields are no longer
+        # disabled (a disabled entry reads as a dead box), so there is nothing to
+        # toggle — clicking a field selects the custom target via its FocusIn bind.
+        pass
 
     # ---------------------------------------------------------------- run
     def _target_key(self) -> str:
