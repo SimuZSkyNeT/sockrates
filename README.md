@@ -104,6 +104,10 @@ Python 3.9 or newer; nothing else to install. The desktop app needs Tkinter, whi
 Python but some distributions split it out (`python3-tk`, `python3-tkinter`, `tk`) — the
 packages list it as recommended, so `apt`/`dnf` will offer it.
 
+**Updating** is one step, whichever way you installed it: run `sockrates --update`, or press
+**Update now** in the app's update dialog. It runs `git pull` for a checkout, `pipx upgrade` /
+`pip install --upgrade` for those, and prints the `apt`/`dnf` command for a system package.
+
 Full guide: **[Installing](docs/install.md)**
 
 ## Usage

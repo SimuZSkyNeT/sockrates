@@ -52,6 +52,7 @@ python3 sockrates.py --target 10.0.0.5:1080          # plain TCP reachability
 | `--no-strict` | off | skip the liar control — faster, worse results |
 | `--no-history` | off | do not read or write `~/.sockrates/history.json` |
 | `--watch MIN` | off | never stop: re-hunt every MIN minutes, rewriting `--out` |
+| `--update` | off | update in place (git pull / pipx / pip, per how it was installed) |
 | `--gui` | off | open the desktop app instead |
 | `--quiet` | off | no progress on stderr |
 

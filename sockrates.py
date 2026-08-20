@@ -78,6 +78,60 @@ def check_for_update(timeout: float = 6.0):
         return None
     return latest, notes.strip()
 
+
+def detect_install():
+    """How was this copy installed? Returns (method, command, cwd).
+
+    The right way to update depends entirely on the install: a git checkout pulls,
+    a pip/pipx install upgrades, and a system package (.deb/.rpm) must go through
+    the OS package manager — which needs root, so the app shows the command rather
+    than running a package manager behind your back.
+    """
+    here = os.path.dirname(os.path.abspath(__file__))
+    # walk up looking for a .git — a working checkout updates with git pull
+    d = here
+    for _ in range(4):
+        if os.path.isdir(os.path.join(d, ".git")):
+            return ("git", ["git", "-C", d, "pull", "--ff-only"], d)
+        parent = os.path.dirname(d)
+        if parent == d:
+            break
+        d = parent
+    low = here.replace("\\", "/").lower()
+    if "/pipx/" in low:
+        return ("pipx", ["pipx", "upgrade", "sockrates"], None)
+    if "site-packages" in low:
+        return ("pip", [sys.executable, "-m", "pip", "install", "--upgrade", "sockrates"], None)
+    if "dist-packages" in low:
+        # Debian/Fedora system package — owned by root, updated by the OS
+        return ("system", None, None)
+    return ("unknown", None, None)
+
+
+def apply_update():
+    """Run the update for this install. Returns (ok, message). Never raises."""
+    import subprocess
+    method, cmd, _ = detect_install()
+    if method == "system":
+        return (False, "Installed as a system package — update with your package manager:\n"
+                       "  Debian/Ubuntu:  sudo apt install --only-upgrade sockrates\n"
+                       "  Fedora/RHEL:    sudo dnf upgrade sockrates")
+    if not cmd:
+        return (False, "Could not tell how this copy was installed. Update it the way you "
+                       "installed it (git pull, pipx upgrade, or your package manager).")
+    try:
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+    except FileNotFoundError:
+        return (False, f"'{cmd[0]}' is not installed, so I can't update automatically.")
+    except Exception as e:
+        return (False, f"Update failed: {e}")
+    out = (p.stdout + p.stderr).strip()
+    if p.returncode != 0:
+        return (False, f"Update failed:\n{out[-400:]}")
+    if "up to date" in out.lower() or "already" in out.lower():
+        return (True, "Already up to date.")
+    return (True, "Updated. Restart Sockrates to run the new version.")
+
 # --------------------------------------------------------------------------
 # Sources: plain text endpoints containing ip:port pairs. Unreachable or
 # reshuffled sources are skipped silently — the list is meant to rot gracefully.
@@ -670,10 +724,20 @@ def main(argv=None) -> int:
     ap.add_argument("--watch", type=float, default=0, metavar="MIN",
                     help="never stop: re-hunt every MIN minutes and keep --out true. "
                          "A list is only as good as the minute it was verified in.")
+    ap.add_argument("--update", action="store_true",
+                    help="update Sockrates in place (git pull / pipx / pip, as appropriate)")
     ap.add_argument("--gui", action="store_true",
                     help="open the desktop app instead of running in the terminal")
     ap.add_argument("--quiet", action="store_true")
     a = ap.parse_args(argv)
+
+    if a.update:
+        upd = check_for_update()
+        if upd:
+            print(f"→ {upd[0]} is available (you have {__version__})")
+        ok, msg = apply_update()
+        print(("✅ " if ok else "❌ ") + msg)
+        return 0 if ok else 1
 
     # One executable, two faces: the terminal for scripts and cron, the desktop
     # app for picking through results by hand.

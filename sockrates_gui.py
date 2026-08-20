@@ -505,9 +505,50 @@ class App:
         box.insert("1.0", notes or "(no notes)")
         box.configure(state="disabled")
         box.pack(fill="both", expand=True, pady=(8, 10))
-        ttk.Label(frm, text=f"Update with:  git -C <your clone> pull",
-                  style="Muted.TLabel").pack(anchor="w")
-        ttk.Button(frm, text="Close", command=win.destroy).pack(anchor="e", pady=(10, 0))
+
+        method, _, _ = ph.detect_install()
+        how = {"git": "This copy is a git checkout — Update now runs git pull.",
+               "pipx": "Installed with pipx — Update now runs pipx upgrade.",
+               "pip": "Installed with pip — Update now runs pip install --upgrade.",
+               "system": "Installed as a system package — update it with your package "
+                         "manager (apt / dnf). The button will show you the exact command.",
+               "unknown": "Update it the way you installed it."}.get(method, "")
+        ttk.Label(frm, text=how, style="Muted.TLabel", wraplength=560,
+                  justify="left").pack(anchor="w")
+
+        line = ttk.Frame(frm)
+        line.pack(fill="x", pady=(12, 0))
+        self.lbl_updmsg = ttk.Label(line, text="", style="Muted.TLabel", wraplength=380,
+                                    justify="left")
+        self.lbl_updmsg.pack(side="left")
+        ttk.Button(line, text="Close", command=win.destroy).pack(side="right")
+        self.b_update = ttk.Button(line, text="Update now", style="Go.TButton",
+                                   command=lambda: self._do_update(win))
+        self.b_update.pack(side="right", padx=8)
+
+    def _do_update(self, win):
+        self.b_update.configure(state="disabled")
+        self.lbl_updmsg.configure(text="updating…")
+        self.root.update_idletasks()
+
+        def work():
+            ok, msg = ph.apply_update()
+            self.q.put(("updresult", (ok, msg, win)))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _show_updresult(self, payload):
+        ok, msg, win = payload
+        try:
+            self.lbl_updmsg.configure(text=msg, foreground=OK if ok else ERR)
+            self.b_update.configure(state="normal")
+        except tk.TclError:
+            return  # dialog already closed
+        # if a git/pip update actually applied, offer to relaunch into the new code
+        if ok and "restart" in msg.lower():
+            if messagebox.askyesno("Sockrates", "Updated. Restart now to run the new version?"):
+                self._save_cfg()
+                os.execv(sys.executable, [sys.executable, os.path.abspath(sys.argv[0])] + sys.argv[1:])
 
     def _toggle_custom(self):
         st = "normal" if self.v_target.get() == "custom" else "disabled"
@@ -674,6 +715,8 @@ class App:
                         threading.Thread(target=self._countries, daemon=True).start()
                 elif kind == "update":
                     self._show_update(payload)
+                elif kind == "updresult":
+                    self._show_updresult(payload)
                 elif kind == "refresh":
                     self._repaint()
                 elif kind == "done":

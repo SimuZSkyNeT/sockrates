@@ -86,7 +86,10 @@ works on every EVM chain.
 
 It also holds **Check for updates on start**, on by default. It asks GitHub for the published
 `CHANGELOG.md`, and if a newer version exists it shows you **what is in it** rather than just a
-version number. The check runs off the main thread and stays silent when you are offline; turn
+version number, with an **Update now** button that knows how this copy was installed — `git
+pull` for a checkout, `pipx upgrade` / `pip install --upgrade` for those, and for a system
+package it shows the `apt`/`dnf` command instead of running a package manager for you. It offers
+to restart afterwards. The check runs off the main thread and stays silent when you are offline; turn
 it off here if you would rather it never phoned home.
 
 ## Keyboard

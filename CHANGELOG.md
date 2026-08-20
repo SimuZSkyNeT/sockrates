@@ -13,6 +13,10 @@ this project follows [Semantic Versioning](https://semver.org/).
 - The desktop app grew a header with the wordmark, zebra-striped result rows, and the scan
   option in the Sources tab.
 
+- **In-place update**: `sockrates --update` and an **Update now** button in the app update the
+  tool the right way for how it was installed (git pull / pipx / pip), or print the package
+  manager command for a system install.
+
 ### Fixed
 - The scan port-knock now reads the SOCKS5 greeting with an exact-length read, so a reply
   split across packets is no longer mistaken for a refusal.
