@@ -3,6 +3,7 @@
 
 <p align="center">
   <a href="https://github.com/SimuZSkyNeT/sockrates/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/SimuZSkyNeT/sockrates/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://pypi.org/project/sockrates/"><img alt="PyPI" src="https://img.shields.io/pypi/v/sockrates.svg"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue.svg"></a>
   <img alt="Python" src="https://img.shields.io/badge/python-3.9%2B-blue.svg">
   <img alt="Dependencies" src="https://img.shields.io/badge/dependencies-none-brightgreen.svg">
