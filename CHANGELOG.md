@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project follows [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] — 2026-08-20
+
+### Added
+- **Scan mode** (`--scan`): discover proxies by scanning a CIDR / range / host you are
+  authorised to test, instead of reading public lists. Every open port is then verified like
+  any other candidate. Capped at a /16 per call, and the desktop app confirms before it starts.
+- The desktop app grew a header with the wordmark, zebra-striped result rows, and the scan
+  option in the Sources tab.
+
+### Fixed
+- The scan port-knock now reads the SOCKS5 greeting with an exact-length read, so a reply
+  split across packets is no longer mistaken for a refusal.
+
 ## [0.1.0] — 2026-08-20
 
 First release.

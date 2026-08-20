@@ -92,8 +92,8 @@ never pretends otherwise:
 
 | | |
 |---|---|
-| **Debian, Ubuntu, Mint** | `sudo apt install ./sockrates_0.1.0_all.deb` |
-| **Fedora, RHEL, openSUSE** | `sudo dnf install ./sockrates-0.1.0-1.noarch.rpm` |
+| **Debian, Ubuntu, Mint** | `sudo apt install ./sockrates_0.2.0_all.deb` |
+| **Fedora, RHEL, openSUSE** | `sudo dnf install ./sockrates-0.2.0-1.noarch.rpm` |
 | **Arch, Manjaro** | `cd packaging && makepkg -si` |
 | **Anywhere** | `pipx install sockrates` |
 | **From source** | `git clone … && python3 sockrates.py --help` |
