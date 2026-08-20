@@ -45,4 +45,6 @@ why the tool re-verifies. See the freshness section in the README.
 the app's last settings. Nothing is sent anywhere except:
 
 - the proxy sources you enable, which are fetched;
-- `ip-api.com`, only when country lookup is on, and only proxy addresses are sent.
+- `ip-api.com`, only when country lookup is on, and only proxy addresses are sent;
+- `raw.githubusercontent.com`, only when the app's update check is enabled, to read the
+  published changelog. It sends nothing but the request. Turn it off under **About**.

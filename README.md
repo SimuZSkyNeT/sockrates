@@ -156,6 +156,18 @@ Sockrates only connects to hosts that already advertise themselves on public pro
 makes one short connection per check. It is a verifier, not a scanner: it does not sweep
 address ranges looking for open ports.
 
+## Support the project
+
+Sockrates is free and always will be. If it saved you an afternoon, a tip is welcome —
+one address, works on **every EVM chain** (Ethereum, BSC, Base, Arbitrum, Polygon, …):
+
+```
+0x74E71BB8849FF0e17FA73Fc61DA107032D117dF6
+```
+
+It is in the app too, under **About**, with a copy button. Starring the repo is free and
+helps just as much.
+
 ## License
 
 [Apache License 2.0](LICENSE). Permissive — use it commercially, fork it, embed it — with an

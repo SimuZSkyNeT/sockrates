@@ -44,6 +44,40 @@ from typing import Iterable, Optional
 
 __version__ = "0.1.0"
 
+REPO = "SimuZSkyNeT/sockrates"
+HOME_URL = f"https://github.com/{REPO}"
+CHANGELOG_URL = f"https://raw.githubusercontent.com/{REPO}/main/CHANGELOG.md"
+DONATE_EVM = "0x74E71BB8849FF0e17FA73Fc61DA107032D117dF6"  # any EVM chain
+
+
+def _ver_tuple(v: str):
+    return tuple(int(x) for x in re.findall(r"\d+", v)[:3])
+
+
+def check_for_update(timeout: float = 6.0):
+    """Read the published CHANGELOG and report a newer version, with its notes.
+
+    Deliberately reads the changelog rather than a version file: if we are going
+    to tell someone an update exists, we should be able to say what is in it.
+    Returns (version, notes) or None. Never raises — being offline is not an error.
+    """
+    import urllib.request
+    try:
+        req = urllib.request.Request(CHANGELOG_URL,
+                                     headers={"User-Agent": f"sockrates/{__version__}"})
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            text = r.read().decode("utf-8", "ignore")
+    except Exception:
+        return None
+    entries = re.findall(r"^## \[?v?(\d+\.\d+\.\d+)\]?(.*?)(?=^## |\Z)",
+                         text, re.M | re.S)
+    if not entries:
+        return None
+    latest, notes = entries[0]
+    if _ver_tuple(latest) <= _ver_tuple(__version__):
+        return None
+    return latest, notes.strip()
+
 # --------------------------------------------------------------------------
 # Sources: plain text endpoints containing ip:port pairs. Unreachable or
 # reshuffled sources are skipped silently — the list is meant to rot gracefully.

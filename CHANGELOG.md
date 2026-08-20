@@ -21,6 +21,8 @@ First release.
   many died since the previous run.
 - Seven export formats: plain, `socks5://` URIs, CSV, JSON, proxychains, PySocks/Telethon, curl.
 - Country lookup and filtering.
+- An **About** tab with the donation address and an update check that reads the published
+  changelog, so it can show what a new version contains instead of just its number.
 - A Tkinter desktop app (`--gui`) with live results, sortable columns, source selection, a
   filter box, right-click actions, auto-refresh, persisted settings, and re-verification before
   every save or copy.

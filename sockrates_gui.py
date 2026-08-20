@@ -55,6 +55,7 @@ class App:
         self._load_cfg()
         self.root.protocol("WM_DELETE_WINDOW", self._quit)
         self.root.after(80, self._drain)
+        self.root.after(1200, self._check_updates)
 
     # ------------------------------------------------------------- settings
     # Remembering the last setup is small but it is the difference between a
@@ -71,6 +72,7 @@ class App:
                     "strict": bool(self.v_strict.get()), "country": bool(self.v_country.get()),
                     "only": self.v_only.get(), "auto": bool(self.v_auto.get()),
                     "every": int(self.v_every.get()), "autofile": self.v_autofile.get(),
+                    "updates": bool(self.v_updates.get()), "fresh": bool(self.v_fresh.get()),
                     "sources": [u for v, u in self.src_vars if v.get()],
                 }, f, indent=2)
         except Exception:
@@ -95,6 +97,8 @@ class App:
             self.v_auto.set(c.get("auto", False))
             self.v_every.set(c.get("every", 10))
             self.v_autofile.set(c.get("autofile", ""))
+            self.v_updates.set(c.get("updates", True))
+            self.v_fresh.set(c.get("fresh", True))
             keep = set(c.get("sources") or [])
             if keep:
                 for v, u in self.src_vars:
@@ -165,6 +169,7 @@ class App:
         nb.add(self._tab_target(nb), text="   Target   ")
         nb.add(self._tab_sources(nb), text="   Sources   ")
         nb.add(self._tab_tuning(nb), text="   Tuning   ")
+        nb.add(self._tab_about(nb), text="   About   ")
 
         # --- action bar
         bar = ttk.Frame(wrap)
@@ -352,6 +357,91 @@ class App:
         if p:
             self.v_autofile.set(p)
 
+    def _tab_about(self, parent) -> ttk.Frame:
+        f = ttk.Frame(parent, padding=14)
+        ttk.Label(f, text=f"Sockrates {ph.__version__}", style="Head.TLabel").grid(
+            row=0, column=0, columnspan=4, sticky="w")
+        ttk.Label(f, text="Every proxy must prove itself.", style="Muted.TLabel").grid(
+            row=1, column=0, columnspan=4, sticky="w", pady=(0, 10))
+        ttk.Label(f, text="Open SOCKS5 finder that cross-examines every candidate until it\n"
+                          "demonstrates it reaches your target — Telegram included.",
+                  justify="left").grid(row=2, column=0, columnspan=4, sticky="w")
+
+        ttk.Separator(f, orient="horizontal").grid(row=3, column=0, columnspan=4,
+                                                   sticky="ew", pady=12)
+        ttk.Label(f, text="Support the project", style="Head.TLabel").grid(
+            row=4, column=0, columnspan=4, sticky="w")
+        ttk.Label(f, text="It is free and always will be. If it saved you time, a tip helps.",
+                  style="Muted.TLabel").grid(row=5, column=0, columnspan=4, sticky="w",
+                                             pady=(0, 6))
+        ttk.Label(f, text="EVM — works on every EVM chain (ETH, BSC, Base, Arbitrum…)").grid(
+            row=6, column=0, columnspan=4, sticky="w")
+        wal = ttk.Entry(f, width=46, font=MONO)
+        wal.insert(0, ph.DONATE_EVM)
+        wal.configure(state="readonly")
+        wal.grid(row=7, column=0, columnspan=3, sticky="w", pady=(4, 0))
+        ttk.Button(f, text="Copy address", command=self._copy_wallet).grid(
+            row=7, column=3, sticky="w", padx=8, pady=(4, 0))
+
+        ttk.Separator(f, orient="horizontal").grid(row=8, column=0, columnspan=4,
+                                                   sticky="ew", pady=12)
+        self.v_updates = tk.BooleanVar(value=True)
+        ttk.Checkbutton(f, text="Check for updates on start (asks GitHub for the changelog)",
+                        variable=self.v_updates).grid(row=9, column=0, columnspan=4, sticky="w")
+        self.lbl_upd = ttk.Label(f, text="", style="Muted.TLabel")
+        self.lbl_upd.grid(row=10, column=0, columnspan=3, sticky="w", pady=(6, 0))
+        ttk.Button(f, text="Check now", command=lambda: self._check_updates(force=True)).grid(
+            row=10, column=3, sticky="w", padx=8, pady=(6, 0))
+
+        ttk.Label(f, text=ph.HOME_URL, style="Muted.TLabel").grid(
+            row=11, column=0, columnspan=4, sticky="w", pady=(12, 0))
+        ttk.Label(f, text="Apache License 2.0 · no third-party dependencies",
+                  style="Muted.TLabel").grid(row=12, column=0, columnspan=4, sticky="w")
+        return f
+
+    def _copy_wallet(self):
+        self.root.clipboard_clear()
+        self.root.clipboard_append(ph.DONATE_EVM)
+        self.lbl_log.configure(text="donation address copied — thank you")
+
+    def _check_updates(self, force: bool = False):
+        """Ask GitHub whether a newer version exists, and show what changed.
+
+        Off the main thread, and silent when offline: an update check that blocks
+        the app or nags on a bad connection is worse than no update check.
+        """
+        if not force and not self.v_updates.get():
+            return
+        self.lbl_upd.configure(text="checking…")
+
+        def work():
+            got = ph.check_for_update()
+            self.q.put(("update", got))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _show_update(self, got):
+        if not got:
+            self.lbl_upd.configure(text=f"you are on the latest version ({ph.__version__})")
+            return
+        ver, notes = got
+        self.lbl_upd.configure(text=f"version {ver} is available")
+        win = tk.Toplevel(self.root)
+        win.title(f"Sockrates {ver} is available")
+        win.configure(bg=BG)
+        win.transient(self.root)
+        frm = ttk.Frame(win, padding=16)
+        frm.pack(fill="both", expand=True)
+        ttk.Label(frm, text=f"Sockrates {ver} — what's new", style="Head.TLabel").pack(anchor="w")
+        box = tk.Text(frm, width=78, height=18, bg=BG2, fg=FG, bd=0, wrap="word",
+                      font=UI, padx=10, pady=8)
+        box.insert("1.0", notes or "(no notes)")
+        box.configure(state="disabled")
+        box.pack(fill="both", expand=True, pady=(8, 10))
+        ttk.Label(frm, text=f"Update with:  git -C <your clone> pull",
+                  style="Muted.TLabel").pack(anchor="w")
+        ttk.Button(frm, text="Close", command=win.destroy).pack(anchor="e", pady=(10, 0))
+
     def _toggle_custom(self):
         st = "normal" if self.v_target.get() == "custom" else "disabled"
         self.e_host.configure(state=st)
@@ -485,6 +575,8 @@ class App:
                     if self.v_country.get() and self.results:
                         self.lbl_log.configure(text="looking up countries…")
                         threading.Thread(target=self._countries, daemon=True).start()
+                elif kind == "update":
+                    self._show_update(payload)
                 elif kind == "refresh":
                     self._repaint()
                 elif kind == "done":

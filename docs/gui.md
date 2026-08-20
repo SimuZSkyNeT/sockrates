@@ -70,6 +70,16 @@ ones only.
 *Save…* offers every format the CLI has: plain, `socks5://` URIs, CSV, JSON, a
 `proxychains.conf` block, a ready-to-paste PySocks/Telethon list, or example `curl` commands.
 
+## About
+
+Version, the project link, and the donation address with a copy button — one EVM address that
+works on every EVM chain.
+
+It also holds **Check for updates on start**, on by default. It asks GitHub for the published
+`CHANGELOG.md`, and if a newer version exists it shows you **what is in it** rather than just a
+version number. The check runs off the main thread and stays silent when you are offline; turn
+it off here if you would rather it never phoned home.
+
 ## Keyboard
 
 | key | action |
