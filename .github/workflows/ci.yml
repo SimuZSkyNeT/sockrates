@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.9", "3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Compile
+        run: python -m compileall -q sockrates.py sockrates_gui.py
+
+      - name: CLI answers
+        run: python sockrates.py --help > /dev/null
+
+      # The proxies are the internet, so CI cannot assert on results. What it CAN
+      # assert is that the protocol code is right — the SOCKS5 and MTProto framing
+      # is checked against a local fake server that speaks the protocol back.
+      - name: Protocol self-test
+        run: python tests/test_protocol.py

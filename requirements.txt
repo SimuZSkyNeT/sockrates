@@ -1,0 +1,3 @@
+# Sockrates has no third-party dependencies — the standard library is enough.
+# The desktop app needs Tkinter, which ships with Python (some distros package it
+# separately: apt install python3-tk / dnf install python3-tkinter / pacman -S tk).

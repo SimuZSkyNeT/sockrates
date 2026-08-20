@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+
+# hunt output — never commit proxy lists
+*.txt
+*.csv
+*.json
+!requirements.txt
