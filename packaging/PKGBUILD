@@ -1,7 +1,7 @@
 # Arch Linux / Manjaro / EndeavourOS
 # Maintainer: SimuZSkyNeT <simuzcrypto@gmail.com>
 pkgname=sockrates
-pkgver=0.4.0
+pkgver=0.5.0
 pkgrel=1
 pkgdesc="Find open SOCKS5 proxies and make every one of them prove it works — Telegram included"
 arch=('any')

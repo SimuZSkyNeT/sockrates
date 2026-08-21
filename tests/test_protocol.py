@@ -258,6 +258,62 @@ def test_anonymity_classify():
           sk.anonymity_of("socks5://127.0.0.1:1", 1, real) == "?")
 
 
+def test_udp_associate():
+    import struct as _st
+    # a SOCKS5 server that associates UDP and a UDP relay that answers a DNS query
+    def udp_relay():
+        u = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        u.bind(("127.0.0.1", 0))
+        return u
+
+    relay = udp_relay()
+    rhost, rport = relay.getsockname()
+
+    def s5_udp(conn):
+        assert conn.recv(3) == b"\x05\x01\x00"
+        conn.sendall(b"\x05\x00")
+        conn.recv(256)  # UDP ASSOCIATE request
+        conn.sendall(b"\x05\x00\x00\x01" + socket.inet_aton(rhost) + _st.pack(">H", rport))
+        # keep control socket open, then serve one UDP datagram
+        data, addr = relay.recvfrom(2048)
+        # echo back a minimal SOCKS5 UDP reply with a fake DNS answer (id + AN=1)
+        dns = b"\x53\x6b\x81\x80\x00\x01\x00\x01" + b"\x00" * 20
+        relay.sendto(b"\x00\x00\x00\x01" + socket.inet_aton("8.8.8.8")
+                     + _st.pack(">H", 53) + dns, addr)
+        try:
+            conn.recv(1)
+        except Exception:
+            pass
+
+    host, port, _ = serve(s5_udp)
+    check("SOCKS5 UDP relay detected", sk.socks5_udp_works(host, port, 5) is True)
+    relay.close()
+
+    # a server that refuses UDP ASSOCIATE (cmd not supported)
+    def s5_no_udp(conn):
+        conn.recv(3)
+        conn.sendall(b"\x05\x00")
+        conn.recv(256)
+        conn.sendall(b"\x05\x07\x00\x01" + b"\x00" * 6)   # 0x07 = not supported
+    host, port, _ = serve(s5_no_udp)
+    check("SOCKS5 UDP refusal detected", sk.socks5_udp_works(host, port, 3) is False)
+
+
+def test_ewma_reliability():
+    hist = {}
+    p = "socks5://1.1.1.1:1080"
+    r = lambda: [sk.Result(proxy=p, latency=0.1, target="t", verified="tcp")]
+    # 3 alive then 2 dead: a lifetime ratio would be 3/5=60%, EWMA weights the
+    # recent deaths harder, so stability should fall well below that.
+    sk.record(hist, [p], r())
+    sk.record(hist, [p], r())
+    sk.record(hist, [p], r())
+    sk.record(hist, [p], [])
+    sk.record(hist, [p], [])
+    stab = hist[p]["stab"]
+    check("EWMA weights recent failures", stab < 0.6 and hist[p]["checks"] == 5)
+
+
 def test_history_keeps_failures():
     """The score must not drift to 100% by forgetting the dead."""
     hist = {}
@@ -275,6 +331,7 @@ if __name__ == "__main__":
                test_mtproto_genuine, test_mtproto_wrong_constructor,
                test_mtproto_wrong_nonce, test_scan_detects_socks5, test_expand_hosts,
                test_formats, test_proxy_types, test_anonymity_classify,
+               test_udp_associate, test_ewma_reliability,
                test_history_keeps_failures):
         fn()
     print(f"\n{'FAILED: ' + ', '.join(FAILS) if FAILS else 'all good'}")

@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project follows [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] — 2026-08-21
+
+### Added
+- **SOCKS5 UDP relay test** (`--udp`, or the app checkbox). Most SOCKS5 servers advertise UDP
+  but never relay it; Sockrates now proves it by doing a real UDP ASSOCIATE and sending a DNS
+  query through the relay, requiring a DNS answer back. Results show `yes` / `no` — a signal
+  almost no free checker gives you.
+
+### Changed
+- **Reliability is now recency-weighted** (an exponential moving average) instead of a lifetime
+  pass ratio. A proxy that worked all last week but died today now scores low, as it should;
+  recent behaviour drives the number.
+
 ## [0.4.0] — 2026-08-21
 
 ### Added

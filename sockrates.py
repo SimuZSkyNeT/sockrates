@@ -42,7 +42,7 @@ import time
 from dataclasses import dataclass, asdict
 from typing import Iterable, Optional
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 REPO = "SimuZSkyNeT/sockrates"
 HOME_URL = f"https://github.com/{REPO}"
@@ -227,6 +227,7 @@ class Result:
     checks: int = 0           # how many times we have tested it
     ptype: str = "socks5"     # socks5 | socks4 | http
     anonymity: str = ""       # "" not checked | transparent | anonymous | elite | ?
+    udp: str = ""             # "" not checked | yes | no (SOCKS5 UDP relay)
 
     @property
     def addr(self) -> str:
@@ -287,15 +288,25 @@ def save_history(hist: dict, path: str = HISTORY_PATH) -> None:
         pass
 
 
+# How much a single run moves the reliability score. A lifetime pass-ratio weighs
+# a proxy's first day the same as today, so one that died a week ago still looks
+# decent; an exponential moving average (stab) tracks *recent* behaviour instead.
+EWMA_ALPHA = 0.3
+
+
 def record(hist: dict, tested: Iterable[str], alive: list["Result"]) -> None:
     """Fold one hunt into the history and stamp the results with what we know."""
     now = time.time()
     ok = {r.proxy for r in alive}
     for p in tested:
         e = hist.setdefault(p, {"first": now, "last_ok": 0, "last_seen": now,
-                                "checks": 0, "ok": 0})
+                                "checks": 0, "ok": 0, "stab": 0.0})
         e["checks"] = int(e.get("checks", 0)) + 1
         e["last_seen"] = now
+        outcome = 1.0 if p in ok else 0.0
+        # first observation seeds the average with the outcome itself
+        e["stab"] = (outcome if e["checks"] == 1
+                     else EWMA_ALPHA * outcome + (1 - EWMA_ALPHA) * float(e.get("stab", 0.0)))
         if p in ok:
             e["ok"] = int(e.get("ok", 0)) + 1
             e["last_ok"] = now
@@ -306,7 +317,8 @@ def record(hist: dict, tested: Iterable[str], alive: list["Result"]) -> None:
         first = float(e.get("first_ok") or e.get("first") or now)
         r.age_h = max(0.0, (now - first) / 3600.0)
         r.checks = int(e.get("checks", 1))
-        r.reliability = (int(e.get("ok", 1)) / r.checks) if r.checks else 1.0
+        # reliability is now the recency-weighted stability, not the lifetime ratio
+        r.reliability = float(e.get("stab", 1.0))
 
 
 # --------------------------------------------------------------------------
@@ -682,10 +694,10 @@ def fmt_uri(res: list["Result"]) -> str:
 
 
 def fmt_csv(res: list["Result"]) -> str:
-    out = ["type,host,port,latency_s,country,anonymity,verified,known_for,reliability_pct,checks,target"]
+    out = ["type,host,port,latency_s,country,anonymity,udp,verified,known_for,reliability_pct,checks,target"]
     for r in res:
         h, _, p_ = r.addr.rpartition(":")
-        out.append(f"{r.ptype},{h},{p_},{r.latency},{r.country},{r.anonymity},{r.verified},"
+        out.append(f"{r.ptype},{h},{p_},{r.latency},{r.country},{r.anonymity},{r.udp},{r.verified},"
                    f"{r.age_label},{round(100*r.reliability)},{r.checks},{r.target}")
     return "\n".join(out)
 
@@ -830,6 +842,72 @@ def _proxy_open(ptype: str, host: str, port: int, timeout: float) -> bool:
         return False
 
 
+def _dns_query(name: str) -> bytes:
+    """A minimal DNS 'A' query packet — used to prove a SOCKS5 UDP relay works."""
+    qid = b"\x53\x6b"  # fixed id; we match it back in the reply
+    header = qid + b"\x01\x00\x00\x01\x00\x00\x00\x00\x00\x00"
+    q = b"".join(bytes([len(p)]) + p.encode() for p in name.split(".")) + b"\x00"
+    return header + q + b"\x00\x01\x00\x01"   # QTYPE=A, QCLASS=IN
+
+
+def socks5_udp_works(host: str, port: int, timeout: float) -> bool:
+    """True if the SOCKS5 proxy actually relays UDP (UDP ASSOCIATE + a real DNS round trip).
+
+    Most SOCKS5 servers advertise but never relay UDP; the only way to know is to
+    associate, send a DNS query through the relay, and require a DNS answer back.
+    The control TCP socket must stay open for the association to live.
+    """
+    ctrl = None
+    try:
+        ctrl = socket.create_connection((host, port), timeout=timeout)
+        ctrl.settimeout(timeout)
+        ctrl.sendall(b"\x05\x01\x00")
+        if _recv_exact(ctrl, 2)[1] != 0x00:
+            return False
+        # UDP ASSOCIATE (cmd 0x03); we don't know our source addr, send 0.0.0.0:0
+        ctrl.sendall(b"\x05\x03\x00\x01" + b"\x00\x00\x00\x00" + b"\x00\x00")
+        rep = _recv_exact(ctrl, 4)
+        if rep[1] != 0x00:
+            return False   # 0x07 = command not supported → TCP-only proxy
+        atyp = rep[3]
+        if atyp == 0x01:
+            baddr = socket.inet_ntoa(_recv_exact(ctrl, 4))
+        elif atyp == 0x04:
+            baddr = socket.inet_ntop(socket.AF_INET6, _recv_exact(ctrl, 16))
+        elif atyp == 0x03:
+            baddr = _recv_exact(ctrl, _recv_exact(ctrl, 1)[0]).decode("latin1")
+        else:
+            return False
+        bport = struct.unpack(">H", _recv_exact(ctrl, 2))[0]
+        # a relay bound to 0.0.0.0 means "send to the same IP as the proxy"
+        if baddr in ("0.0.0.0", "::"):
+            baddr = host
+
+        # SOCKS5 UDP request: RSV(2) FRAG(1) ATYP DST.ADDR DST.PORT DATA
+        dns = _dns_query("example.com")
+        pkt = b"\x00\x00\x00\x01" + socket.inet_aton("8.8.8.8") + struct.pack(">H", 53) + dns
+        u = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        u.settimeout(timeout)
+        try:
+            u.sendto(pkt, (baddr, bport))
+            data, _ = u.recvfrom(2048)
+        finally:
+            u.close()
+        # strip the SOCKS5 UDP header, then require our DNS id + an answer
+        if len(data) < 10 or data[:3] != b"\x00\x00\x00":
+            return False
+        body = data[10:] if data[3] == 0x01 else data  # skip header for ATYP v4
+        return body[:2] == b"\x53\x6b" and len(body) > 12 and (body[7] > 0)
+    except Exception:
+        return False
+    finally:
+        if ctrl:
+            try:
+                ctrl.close()
+            except Exception:
+                pass
+
+
 def expand_targets(spec: str, ports: list[int]) -> list[str]:
     """Turn a CIDR / range / host into host:port candidates.
 
@@ -914,9 +992,21 @@ def classify_anonymity(res: list[Result], workers: int, timeout: float,
               file=sys.stderr, flush=True)
 
 
+def test_udp(res: list[Result], workers: int, timeout: float) -> None:
+    """Fill in each SOCKS5 result's udp field. Non-socks5 proxies can't do it."""
+    def one(r: Result):
+        if r.ptype != "socks5":
+            r.udp = "n/a"
+            return
+        _, h, p = split_scheme(r.proxy)
+        r.udp = "yes" if socks5_udp_works(h, p, timeout) else "no"
+    with futures.ThreadPoolExecutor(max_workers=workers) as ex:
+        list(ex.map(one, res))
+
+
 def hunt(proxies: list[str], target: str, workers: int, timeout: float,
          strict: bool, progress: bool = False, history: bool = True,
-         anonymity: bool = False) -> list[Result]:
+         anonymity: bool = False, udp: bool = False) -> list[Result]:
     out: list[Result] = []
     done = 0
     with futures.ThreadPoolExecutor(max_workers=workers) as ex:
@@ -934,6 +1024,8 @@ def hunt(proxies: list[str], target: str, workers: int, timeout: float,
                       file=sys.stderr, flush=True)
     if anonymity and out:
         classify_anonymity(out, workers, timeout, progress=progress)
+    if udp and out:
+        test_udp(out, workers, timeout)
     if history:
         h = load_history()
         record(h, proxies, out)
@@ -1073,6 +1165,8 @@ def main(argv=None) -> int:
                          "(one extra judge request per proxy)")
     ap.add_argument("--only-elite", action="store_true",
                     help="keep only elite proxies (implies --anonymity)")
+    ap.add_argument("--udp", action="store_true",
+                    help="also test whether each SOCKS5 proxy relays UDP (UDP ASSOCIATE)")
     ap.add_argument("--min-reliability", type=float, default=0.0, metavar="PCT",
                     help="only proxies that passed at least PCT%% of our past checks")
     ap.add_argument("--no-history", action="store_true",
@@ -1163,7 +1257,7 @@ def main(argv=None) -> int:
     t1 = time.time()
     res = hunt(proxies, a.target, a.workers, a.timeout, not a.no_strict,
                progress=not a.quiet, history=not a.no_history,
-               anonymity=a.anonymity or a.only_elite)
+               anonymity=a.anonymity or a.only_elite, udp=a.udp)
     if a.max_latency:
         res = [r for r in res if r.latency <= a.max_latency]
     if a.min_age:
